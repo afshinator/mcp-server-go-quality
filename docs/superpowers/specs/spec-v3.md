@@ -8,6 +8,10 @@ by AI agents (Claude Code, Codex, etc.) and CI pipelines. The server runs lintin
 vulnerability scanning, and nil-panic detection on any Go project, returning structured
 JSON diagnostics an agent can parse and act on programmatically.
 
+**MCP protocol version:** This server targets MCP specification `2025-03-26`. The
+`initialize` response must declare this version. Verify against the current published
+spec at implementation time.
+
 ### Why MCP Wrapping
 
 Individual CLI tools (`golangci-lint`, `govulncheck`, `nilaway`) are developer-facing.
@@ -72,11 +76,27 @@ it calls the discovery subsystem directly to force-install tools. It is not a ch
 
 - **Idiomatic signatures** — handlers are `func runX(ctx context.Context, r CommandRunner, path string) ([]Diagnostic, error)`. Context carries the per-tool deadline; `CommandRunner` is the mockable executor.
 - **Runner carries directory** — `ExecRunner` stores `Dir string` set at construction time; `CommandRunner` interface stays clean (`Run(ctx, name, args...)` — no dir parameter). The handler layer creates a fresh runner per request from the resolved project path. This is cheap (zero allocations beyond the struct) and avoids stale state across requests with different `project_path` values.
-- **Parallel by default** — `runAll` fires up to 3 goroutines with independent per-tool timeout contexts; a cancel-only parent context supports clean shutdown.
-- **Lazy install with version-aware caching** — tool discovery runs on the first incoming request from any check tool. The cache tracks `toolName → resolvedVersion` (e.g. `govulncheck → v1.3.0`), not the requested specifier (`latest`). The resolved version is read from the installed binary via `go version -m`. When `.go-quality.yaml` requests a different version, a re-install is triggered and the cache is updated with the new resolved version. `install_tools` bypasses the cache and force-reinstalls the requested subset of tools, then updates only those cache entries with the newly resolved versions — guaranteeing the next check call has a warm cache. The cache is protected by a `sync.RWMutex` — read locks for lookups, write locks for installs and cache updates — so concurrent requests don't trigger duplicate installs.
-- **One file per tool** — `golangci_lint.go`, `govulncheck.go`, `nilaway.go`
+- **Parallel by default** — `runAll` fires up to `len(requestedTools)` goroutines (maximum 3) with independent per-tool timeout contexts; a cancel-only parent context supports clean shutdown.
+- **Version-aware caching** — the cache tracks `toolName → resolvedVersion` (e.g. `govulncheck → v1.3.0`). The resolved version is read from the installed binary via `go version -m`. When `.go-quality.yaml` requests a different version, a re-install is triggered and the cache is updated. The cache is protected by a `sync.RWMutex` — read locks for lookups, write locks for installs and cache updates. **Double-check lock pattern required:** after acquiring the write lock, re-stat the binary and re-read the cache entry before installing. A concurrent request may have completed the install while this goroutine waited for the write lock; if the re-check confirms the correct version is now cached, release the lock and skip the install. This prevents redundant `go install` calls and module cache file corruption.
+- **Uniform path normalization** — all handlers must normalize file paths to be relative
+  to `projectRoot` using `filepath.Rel(projectRoot, path)`. Although `golangci-lint`
+  reliably emits paths relative to `cmd.Dir` when invoked with `./...`, and govulncheck
+  generally does likewise, neither is guaranteed across all versions and workspace
+  configurations. Every handler must run its extracted file path through the same
+  `filepath.Rel` resolver (with the same fallbacks specified for nilaway) so the agent
+  receives a consistent relative path regardless of which tool produced the diagnostic.
 - **Single entry point** — `cmd/mcp-server-go-quality/main.go`
 - **Logging to stderr only** — all progress and install messages go to `stderr`; `stdout` carries only JSON-RPC traffic.
+
+### Concurrency Model
+
+The server uses stdio transport, meaning a single MCP client connects to the process.
+The MCP protocol permits multiple concurrent tool calls from that client. The server
+implements no global request queue or concurrency limit: N simultaneous `run_code_checks`
+calls produce up to N×3 subprocesses. On constrained machines (Docker containers with
+CPU or memory limits), agents should serialize check calls or use the `tools` parameter
+to reduce per-call parallelism. The pre-flight sequential install ensures `go install`
+calls never race regardless of request concurrency.
 
 ### MCP Tools Registered
 
@@ -89,11 +109,17 @@ it calls the discovery subsystem directly to force-install tools. It is not a ch
 | `install_tools` | Pre-install required Go tools (configurable subset, pinned versions) |
 
 Each check tool accepts:
-- `project_path` (optional, string) — defaults to server's CWD
+- `project_path` (optional, string) — defaults to server's CWD. When launched as an
+  MCP server, the host process (e.g. Claude Code) sets the server's working directory
+  to the project workspace root. Agents should pass an explicit `project_path` when
+  targeting a specific sub-module to avoid ambiguity.
 
 `run_code_checks` also accepts:
 - `tools` (optional, array of strings) — subset of checkers to run. Valid values:
   `"golangci-lint"`, `"govulncheck"`, `"nilaway"`. Omitted or empty = all three.
+  **Design note:** An explicit empty array (`[]`) is intentionally equivalent to omitting
+  the parameter — both run all three checkers. There is no way to run zero checkers via
+  `run_code_checks`; use a single-tool handler if only one checker is needed.
 
 `install_tools` also accepts:
 - `tools` (optional, array of strings) — subset of tools to install. Same valid values
@@ -108,15 +134,15 @@ Each check tool accepts:
 ```
 Agent calls run_code_checks →
   Parse project_path (default CWD)
-  Walk up directory tree to find go.work or go.mod (root discovery)
+  Two-pass walk to find project root (Pass 1: go.work; Pass 2: go.mod)
   Validate root is a Go project (go.mod or go.work exists)           ← fatal if missing
   Pre-flight: synchronous discovery of requested tools (version-aware cache)
     → install any missing/wrong-version requested tools sequentially ← avoids go install race
     → log progress to stderr only
   Derive cancel-only parent context: context.WithCancel(parent)
   Filter to requested tools (from `tools` param, default all)
-  Fire goroutines only for requested tools; loop variable passed as argument
-  to avoid closure capture bug:
+  Fire goroutines only for requested tools; loop variable passed by value
+  (explicit pass is idiomatic; loop-variable capture is fixed in Go ≥1.22):
     for _, tool := range requestedTools {
         go func(t Tool) {
             toolCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
@@ -150,7 +176,7 @@ type Diagnostic struct {
     File     string          `json:"file"`              // relative path from project root ("" if unknown)
     Line     int             `json:"line"`              // 0 if unknown
     Column   int             `json:"column,omitempty"`  // 0 if unknown / not applicable
-    Severity string          `json:"severity,omitempty"`// "error" | "warning" | "" if tool has no concept
+    Severity string          `json:"severity,omitempty"`// "error" | "warning" | absent if tool has no concept
     Message  string          `json:"message"`           // human-readable summary extracted from native output
     Error    string          `json:"error"`             // "" on success; standardised message on failure (see below)
     Native   json.RawMessage `json:"native"`            // tool's complete native JSON output (or JSON-encoded raw string on parse failure)
@@ -163,20 +189,33 @@ loop. The `Native` field preserves the full raw output for deep context, remedia
 instructions (govulncheck references, golangci-lint SuggestedFixes), and tool-specific
 fields the agent may need.
 
+**Field encoding notes for JSON consumers:**
+- `Column` uses 1-based indexing. A value of `0` means "unknown or not applicable" and
+  is omitted from JSON output via `omitempty`. No supported tool uses 0-based column
+  indices, so `0` unambiguously means "not reported."
+- `Severity` with `omitempty` means the field is **absent** (not `""`) in JSON output
+  for govulncheck and nilaway diagnostics — tools that have no severity concept. Agents
+  must use `hasOwnProperty("severity")` (or equivalent) rather than testing for an empty
+  string.
+- `Native` is `json.RawMessage`. A zero-valued (nil) `Native` marshals as JSON `null`.
+  This occurs for error diagnostics where no native output was captured. Agents must
+  null-check `native` before accessing its contents.
+
 **Severity mapping by tool:**
 - golangci-lint: `issue.Severity` (`"warning"` or `"error"`)
-- govulncheck: always `""` (Go vulnerability database has no severity field)
-- nilaway: always `""` (nilaway has no severity concept)
+- govulncheck: field absent (Go vulnerability database has no severity field)
+- nilaway: field absent (nilaway has no severity concept)
 
 **When `Error` is non-empty**, the Diagnostic carries a tool-level failure:
 - `File`, `Line`, `Column`, `Severity`, `Message` are zero-valued (not applicable).
-- `Native` is zero-valued *unless* the error is an NDJSON parse failure — in that one
-  case, `Native` carries a JSON-encoded string of the raw unparseable content so a
-  developer can inspect what govulncheck emitted (see govulncheck section).
+- `Native` is zero-valued (marshals as `null`) *unless* the error is an NDJSON parse
+  failure — in that one case, `Native` carries a JSON-encoded string of the raw
+  unparseable content so a developer can inspect what govulncheck emitted (see
+  govulncheck section).
 
 **When `Error` is empty**, the Diagnostic carries a finding:
 - All fields are populated normally from the tool's native output.
-- `Severity` may still be `""` for tools that have no severity concept.
+- `Severity` is absent for tools that have no severity concept.
 
 ### Standardised Error String Format
 
@@ -184,6 +223,12 @@ All `error` field values use this exact format:
 
 ```
 Tool command failed with exit code <N>. Stderr: <content>
+```
+
+For install failures:
+
+```
+install failed: <exact-go-install-command>. exit code <N>. stderr: <content>
 ```
 
 For timeouts:
@@ -248,28 +293,97 @@ is for readability; in actual output each object is emitted as a single line.
   "osv": "GO-2026-4918",
   "fixed_version": "v1.25.10",
   "trace": [
-    {"module": "stdlib", "package": "net/http",
-     "position": {"filename": "src/net/http/client.go", "line": 586, "column": 18}},
     {"module": "github.com/user/project", "package": "...httpclient",
-     "position": {"filename": "internal/httpclient/client.go", "line": 78, "column": 25}}
+     "position": {"filename": "internal/httpclient/client.go", "line": 78, "column": 25}},
+    {"module": "stdlib", "package": "net/http",
+     "position": {"filename": "src/net/http/client.go", "line": 586, "column": 18}}
   ]
 }}
 ```
 
-Extraction rules for the unified `Diagnostic` fields:
-- `File`/`Line`/`Column`: from the last `finding.trace` entry that has a `position` (the call site in user code)
-- `Severity`: always `""` (Go vulnerability database has no severity field)
-- `Message`: from `osv.summary`. If `osv.summary` is absent, fall back to the `finding.osv`
-  ID (e.g. `"GO-2026-4918"`). Do not use `osv.details` as a fallback — govulncheck's
-  streamed NDJSON output omits the `details` field even when present in the full OSV
-  database record, making it unreliable as a fallback source.
-- `Native`: the raw `finding` object + associated `osv` object
+**Parser implementation note:** Because `osv` objects and `finding` objects arrive on
+separate, independent NDJSON lines, the parser must build an in-memory map of
+`osvID → summary` as it reads lines sequentially. When it encounters a `finding` line,
+it looks up `finding.osv` in this map to resolve the `Message`. A `finding` that
+arrives before its corresponding `osv` line (which govulncheck does not currently emit,
+but is not ruled out by the format) must still resolve correctly — the map lookup
+should be deferred until all lines are consumed, not performed inline during streaming.
 
-**Note on multi-module workspaces:** the "last entry with a position" heuristic picks the
-deepest call site in user code. In a workspace with multiple modules, this may point to a
-shared library module rather than the specific service an agent is working on. Agents
-should check `Native.finding.trace` for the full call chain when the file location appears
-to be in a dependency.
+Unknown object types in the NDJSON stream (e.g. `progress`, `message`, or future fields)
+must be silently skipped. Only `osv` and `finding` keys are processed.
+
+Extraction rules for the unified `Diagnostic` fields:
+- `File`/`Line`/`Column`: govulncheck orders `trace` **chronologically from Caller to
+  Callee** — `trace[0]` is the user-space entry point (the outermost call in local code
+  that starts the vulnerable call chain), and the last entry is the vulnerable sink inside
+  a dependency or the standard library. Do **not** use the last trace entry — it points
+  to read-only module cache paths (e.g. `pkg/mod/...`) that an agent cannot edit.
+  Instead, traverse the array from index `0` forward and extract `filename`, `line`, and
+  `column` from the **first** `trace` entry whose `module` field matches a workspace-local
+  module (declared in a `use` directive of `go.work`, or the root module of a
+  single-module project). As shown in the example above, `github.com/user/project` is
+  `trace[0]` (the editable caller in user code) and `stdlib/net/http` is the last entry
+  (the read-only vulnerable sink). If no workspace-local entry is found (unusual),
+  fall back to `trace[0]`.
+- `Severity`: field absent (Go vulnerability database has no severity field)
+- `Message`: look up `finding.osv` ID in the accumulated `osvID → summary` map. If the
+  ID is absent from the map or the `summary` field is empty, fall back to the raw
+  `finding.osv` ID string (e.g. `"GO-2026-4918"`). Do not use `osv.details` as a
+  fallback — govulncheck's streamed NDJSON output omits the `details` field even when
+  present in the full OSV database record, making it unreliable as a fallback source.
+- `Native`: pack the `finding` and its correlated `osv` block into a rigid container
+  struct to provide an unambiguous schema without dynamic JSON deep-merging:
+  ```go
+  type GovulncheckNativeContainer struct {
+      Finding json.RawMessage `json:"finding"`
+      OSV     json.RawMessage `json:"osv"`
+  }
+  ```
+  Serialise this struct as the `Native` field. Agents access `native.finding` and
+  `native.osv` as independent JSON objects. If no matching `osv` entry exists in the
+  accumulated map (rare), set `OSV` to `json.RawMessage("null")`.
+
+**Note on multi-module workspaces:** the "first workspace-local entry" heuristic picks
+the correct editable call site even when multiple modules are present. Agents can inspect
+`native.finding.trace` for the full call chain from the user's entry point down to the
+vulnerable sink when more context is needed.
+
+**Vulnerability database lock retry:** On the first invocation after a cold install,
+govulncheck downloads and caches the Go vulnerability database (approximately 40 MB —
+and growing — at `~/.cache/govulncheck`). If two concurrent `govulncheck` processes race
+on this download (e.g. two parallel MCP requests both trigger `run_vuln_check` before the
+cache is warm), the second process may exit with code 1 and a filesystem locking error
+in stderr. The handler must detect this specific failure and retry:
+
+```go
+const vulnDBLockPhrase = "database is locked"  // substring match on stderr
+const maxVulnRetries   = 3
+const vulnRetryBackoff = 2 * time.Second
+
+for attempt := 0; attempt < maxVulnRetries; attempt++ {
+    result, stderr, exitCode = runGovulncheck(toolCtx, ...)
+    if exitCode == 1 && strings.Contains(stderr, vulnDBLockPhrase) {
+        select {
+        case <-time.After(vulnRetryBackoff):
+            // backoff elapsed, try again
+        case <-toolCtx.Done():
+            return nil, toolCtx.Err() // deadline or cancellation — stop retrying
+        }
+        continue
+    }
+    break
+}
+```
+
+This keeps the execution path fully concurrent for the 99% case where the local DB is
+already warm. The retry only fires on the rare cold-start collision. If all retry
+attempts fail with a lock error, the final attempt's error is returned as a normal
+Diagnostic (exit code 1). The backoff is context-aware: if `toolCtx` is cancelled or
+its deadline expires during the sleep, the retry loop exits immediately. Note that each
+backoff interval counts against the per-tool timeout budget — three retries at 2s each
+consume 6s before any govulncheck analysis begins. Calling `install_tools` at session
+start is recommended, as it primes the DB download sequentially before any parallel
+check calls begin.
 
 **NDJSON parse error handling:** The parser must accumulate `json.Unmarshal` errors per
 line rather than silently skipping them. If any lines failed to parse, append a single
@@ -288,7 +402,10 @@ Diagnostic{
 This is a tool-execution failure — the diagnostic is about govulncheck's output format,
 not about the user's code. `Native` carries the raw content so a developer can debug.
 
-**nilaway** (`-json -pretty-print=false` — verified working on installed version):
+**nilaway** (`-json -pretty-print=false` — verified against `go.uber.org/nilaway` at the
+pseudo-version pinned in the version cache; re-validate this flag interface when bumping
+the nilaway version via `install_tools`, as nilaway is pre-1.0 and its CLI is not yet
+stable):
 
 ```json
 {
@@ -302,39 +419,120 @@ not about the user's code. `Native` carries the raw content so a developer can d
 }
 ```
 
+The top-level JSON object is a dynamic map keyed by Go package import path (e.g.
+`"github.com/myorg/repo/services/auth/pkg/db"`). The parser must treat this as
+`map[string]NilawayPackageResult` — not a fixed struct — since the keys are arbitrary
+package paths that vary per project:
+
+```go
+type NilawayIssue struct {
+    Posn    string `json:"posn"`
+    End     string `json:"end"`
+    Message string `json:"message"`
+}
+type NilawayPackageResult struct {
+    Nilaway []NilawayIssue `json:"nilaway"`
+}
+type NilawayOutput map[string]NilawayPackageResult
+```
+
+**Zero-findings case:** When nilaway finds no nil-safety issues, it emits an empty JSON
+object `{}`. The parser maps over an empty `NilawayOutput` and returns `[]Diagnostic{}`
+(success, no findings). Empty stdout (no output at all) is distinct from `{}` and must
+be treated as `"unexpected output format from nilaway"` — return a Diagnostic with
+`Error` set.
+
 Extraction rules:
-- `File`: strip project root prefix using `filepath.Rel(projectRoot, absPath)`. If `filepath.Rel` returns an error (e.g. cross-drive or symlink boundary), fall back to `strings.TrimPrefix(absPath, projectRoot)`. If the path is already relative or stripping still yields an absolute path, preserve it as-is rather than returning `""`.
+- `File`: strip project root prefix using `filepath.Rel(projectRoot, absPath)`. If
+  `filepath.Rel` returns an error (e.g. cross-drive or symlink boundary), fall back to
+  `strings.TrimPrefix(absPath, projectRoot)`. If the path is already relative or
+  stripping still yields an absolute path, preserve it as-is rather than returning `""`.
 - `Line`/`Column`: parsed from `posn` (`file.go:line:col`)
-- `Severity`: always `""` (nilaway has no severity concept)
-- `Message`: first sentence of the `message` field. A "sentence" is everything up to the first `. ` (period + space) followed by an uppercase ASCII letter `[A-Z]`, or up to the first `\n`. If no such boundary is found, use the full `message`. This avoids false boundaries from function signatures containing dots (e.g. `pkg.Type.Method`).
+- `Severity`: field absent (nilaway has no severity concept)
+- `Message`: first sentence of the `message` field. A "sentence" is everything up to the
+  first `. ` (period + space) followed by an uppercase ASCII letter `[A-Z]`, or up to
+  the first `\n`. If no such boundary is found, use the full `message`. This avoids
+  false boundaries from function signatures containing dots (e.g. `pkg.Type.Method`).
+  Known limitation: abbreviations ending in uppercase (e.g. `"e.g. Something"`) will
+  produce a false sentence split at `"e.g."`. This is accepted as a minor cosmetic
+  defect — the full message is always available in `native`.
 - `Native`: the raw nilaway error object
 
 ---
 
 ## Tool Discovery & Installation
 
+### Binary Directory Resolution (applies everywhere, resolved at startup)
+
+The server must never rely solely on `exec.LookPath` for tool presence checks or
+subprocess invocations. `$GOPATH/bin` and `$GOBIN` are frequently absent from `$PATH`
+in Docker images, CI containers, and sandboxed environments. Using `LookPath` in these
+environments causes a silent infinite reinstall loop: the server runs `go install`,
+places the binary in `$GOPATH/bin`, and then on the next request `LookPath` fails again
+because `$PATH` hasn't changed.
+
+At server startup, resolve the install directory once using the Go toolchain:
+
+```go
+func resolveGoBinDir() (string, error) {
+    out, err := exec.Command("go", "env", "GOBIN").Output()
+    if err != nil {
+        return "", fmt.Errorf("go env GOBIN: %w", err)
+    }
+    if binDir := strings.TrimSpace(string(out)); binDir != "" {
+        return binDir, nil
+    }
+    out, err = exec.Command("go", "env", "GOPATH").Output()
+    if err != nil {
+        return "", fmt.Errorf("go env GOPATH: %w", err)
+    }
+    gopath := strings.TrimSpace(string(out))
+    if gopath == "" {
+        homeDir, err := os.UserHomeDir()
+        if err != nil {
+            return "", fmt.Errorf("os.UserHomeDir: %w", err)
+        }
+        gopath = filepath.Join(homeDir, "go")
+    }
+    return filepath.Join(gopath, "bin"), nil
+}
+```
+
+Store this `binDir` at startup. All subsequent tool presence checks, version reads, and
+`exec.Command` invocations use `filepath.Join(binDir, toolName)` directly — never
+`exec.LookPath`. This eliminates the silent reinstall loop that occurs when `$GOPATH/bin`
+is absent from `$PATH`.
+
 ### Auto-Install Rules
 
-1. On the **first incoming request from any check tool** (`run_code_checks`, `run_lint`,
-   `run_vuln_check`, `run_nil_check`), discover each **requested** tool via `exec.LookPath`.
-   The server reads the installed version via `go version -m` on the discovered binary path
-   (see install_tools Output Format for the two-step Go pattern) and caches the resolved
-   version (`toolName → v1.3.0`). When `.go-quality.yaml` requests a different version
-   than the cached one, a re-install is triggered.
-2. If any requested tool is missing (not on PATH) or has the wrong version, install all
-   such tools **sequentially** to avoid Go module cache lock races from concurrent
-   `go install` calls.
-3. Log a clear message to **stderr**: `"Installing <tool>@<version>... this happens once."`
+1. On every request from any check tool, a version-aware cache lookup is performed for
+   each requested tool. The cache tracks `toolName → resolvedVersion`. On a **cache hit**
+   with a matching version, skip directly to execution. On a **cache miss**, proceed to
+   discovery (rule 2).
+2. **Discovery:** stat `filepath.Join(binDir, toolName)`. If the binary exists, read its
+   installed version via `go version -m <path>` and compare against the requested version.
+   If it matches, store in cache and skip install. If missing or wrong version, proceed
+   to install (rule 3).
+3. If any requested tool is missing or has the wrong version, install all such tools
+   **sequentially** to avoid Go module cache lock races from concurrent `go install` calls.
+   **Double-check lock pattern:** after acquiring the write lock on the version cache,
+   re-stat the binary before installing. A concurrent request may have completed the
+   install while this goroutine waited for the lock. If the re-check confirms the correct
+   version is now present, release the lock and skip the install.
+4. Log a clear message to **stderr**: `"Installing <tool>@<version>... this happens once."`
    — never to stdout, which carries JSON-RPC traffic.
-4. If install fails, return a Diagnostic with the `error` field set to the exact `go install`
-   command that failed and its stderr output.
-5. The `install_tools` MCP tool lets agents pre-install proactively before any analysis runs.
-   It is the **recommended first step** in agent workflows — calling it at session start
-   forces a synchronous install with progress feedback, avoiding a silent 2-5 minute wait
-   on the first check call. `install_tools` bypasses the version cache and force-reinstalls
-   the requested `tools` subset (or all three if omitted), then updates only those cache
-   entries with the newly resolved versions. After `install_tools` completes, the next check
-   call has a warm cache and zero pre-flight overhead.
+5. If install fails, return a Diagnostic with the `error` field formatted as:
+   `"install failed: <exact-go-install-command>. exit code <N>. stderr: <content>"`
+6. The `install_tools` MCP tool lets agents pre-install proactively before any analysis
+   runs. It is the **recommended first step** in agent workflows — calling it at session
+   start forces a synchronous install with progress feedback, avoiding a silent 2–5
+   minute wait on the first check call. `install_tools` bypasses the in-memory version
+   cache and re-stats the binary on disk for each requested tool (or all three if `tools`
+   is omitted or empty). Tools already at the correct version on disk appear in
+   `already_present`. Tools at the wrong version or missing are re-installed and appear
+   in `installed` on success or `failed` on failure. After completion, the cache entries
+   for all re-checked tools are updated with the freshly resolved versions — guaranteeing
+   the next check call has a warm cache.
 
 ### install_tools Output Format
 
@@ -362,24 +560,27 @@ for success entries, `{ tool, version, command, stderr }` for failures:
 }
 ```
 
-- `installed`: tools that were missing and now installed successfully, with resolved version.
-- `already_present`: tools already on PATH with a matching version, with resolved version.
+- `installed`: tools that were missing or at the wrong version and now installed
+  successfully, with resolved version.
+- `already_present`: tools whose binary was found at `filepath.Join(binDir, toolName)`
+  with a matching version, with resolved version. A tool in `GOPATH/bin` that is not on
+  `$PATH` can still appear here — `install_tools` uses the resolved `binDir`, not
+  `exec.LookPath`.
 - `failed`: each entry includes the exact `command` that failed and its `stderr`. The
   `version` field carries the requested specifier (e.g. `"latest"`) when resolution failed
   before install could begin, or the resolved version when the install itself failed after
   a successful `go list`.
 
-Tools found on PATH at the wrong version are treated as missing and attempted re-install;
+Tools found at the wrong version are treated as missing and attempted re-install;
 they appear in `installed` on success or `failed` on failure, never in `already_present`.
 
-**Version discovery for `already_present`:** the server uses `go version -m` on the
-binary path discovered via `exec.LookPath`. This works universally for all three tools
+**Version discovery:** the server uses `go version -m` on the binary path at
+`filepath.Join(binDir, toolName)`. This works universally for all three tools
 (no per-tool flag guessing). The implementation is a two-step Go pattern, not a shell
 one-liner:
 
 ```go
-binaryPath, err := exec.LookPath(toolName)
-if err != nil { /* tool not on PATH */ }
+binaryPath := filepath.Join(binDir, toolName)
 cmd := exec.Command("go", "version", "-m", binaryPath)
 output, err := cmd.Output()
 // parse "mod <module-path> <version>" lines
@@ -394,7 +595,7 @@ If `go version -m` fails (e.g. binary was hand-built without module info), the e
 reports `{ "tool": "<name>", "version": "unknown" }` rather than omitting it or
 fabricating a version. If the cached version is `unknown`, the server treats it as
 always-matching the requested version to avoid re-install loops — the tool was found
-on PATH and is presumed usable. `install_tools` can still force a re-install.
+and is presumed usable. `install_tools` can still force a re-install.
 
 ### Version Pinning
 
@@ -408,7 +609,7 @@ timeout: 5m                          # per-tool deadline (default: 5m)
 tools:
   golangci-lint:
     version: v2.11.4                 # pinned default; override with care
-    extra_args: ["--no-config"]      # valid v2 flag; appended after required flags
+    extra_args: ["--no-config"]      # valid v2 flag; prepended before required flags
   govulncheck:
     version: latest
     extra_args: []                   # positional targets (e.g. ./...) are added automatically
@@ -418,17 +619,23 @@ tools:
 ```
 
 No file present → all tools run at their pinned defaults with zero extra args.
-Server's required flags (like `--out-format=json`) are always applied and cannot be
-overridden via `extra_args`.
+
+Server's required flags (like `--out-format=json`) are always prepended to the command
+before `extra_args`. Because some tools use last-flag-wins flag parsing (e.g. golangci-lint
+with pflag), a conflicting flag in `extra_args` appearing after a required flag could
+override it. To prevent this, the server validates `extra_args` at config load time and
+rejects any argument that conflicts with a server-managed flag, returning a fatal config
+error: `"config error: extra_args for <tool> contains reserved flag <flag>"`.
 
 ### `latest` Resolution Policy
 
 When `.go-quality.yaml` specifies `version: latest` (the default for govulncheck and
-nilaway), the server resolves `latest` to a concrete version **once per process lifetime**:
+nilaway), the server resolves `latest` to a concrete version **once per cache lifetime**
+(i.e., once per process, unless `install_tools` is called to force a fresh resolution):
 on the first request that needs this tool's version (if it isn't already cached), the
 server logs to stderr `"Resolving <tool>@latest..."`, then runs
 `go list -m -json <pkg>@latest` and stores the resolved semver (e.g. `latest` → `v1.3.0`).
-If the tool is not yet on PATH (not installed), skip `go list` resolution and proceed
+If the tool is not yet installed, skip `go list` resolution and proceed
 directly to `go install <pkg>@latest`; after install, read the version from the new
 binary via `go version -m`. All subsequent requests use the cached resolved version —
 no network call on every check. Call `install_tools` to force a fresh resolution.
@@ -497,7 +704,7 @@ The server does **not** duplicate golangci-lint's linter config. That lives in
 
 The correct order for agentic consumption is:
 
-1. **Call `install_tools` once at session start.** This force-installs all three tools
+1. **Call `install_tools` once at session start.** This re-checks all three tools on disk
    synchronously and returns a structured result. The agent should check the `failed`
    array and notify the user if any tool could not be installed.
 2. **Call `run_code_checks` for each Go project.** The server auto-discovers the workspace
@@ -535,7 +742,10 @@ the pattern used by cryptospect-cli.
 
 **The `timeout` field is a per-tool budget.** Each checker goroutine gets an independent
 deadline. A slow tool times out without cancelling siblings. The total wall clock is
-at most `cfg.Timeout`.
+at most `cfg.Timeout`. The timeout governs subprocess execution only — it does not cover
+the pre-flight install phase. A cold `go install` of all three tools on a slow network
+can take 5–10 minutes and runs before the per-tool budget starts. Call `install_tools`
+at session start to move the install cost outside of check request latency.
 
 ```go
 type runResult struct {
@@ -555,6 +765,16 @@ for _, check := range activeCheckers {
     wg.Add(1)
     go func(chk Checker) {
         defer wg.Done()
+        defer func() {
+            if r := recover(); r != nil {
+                results <- runResult{
+                    diagnostics: []Diagnostic{{
+                        Tool:  chk.Name(),
+                        Error: fmt.Sprintf("internal panic: %v", r),
+                    }},
+                }
+            }
+        }()
         // Independent per-tool timeout from the same clock-start moment.
         // If this tool times out, only this goroutine's subprocess is killed.
         toolCtx, toolCancel := context.WithTimeout(ctx, cfg.Timeout)
@@ -562,13 +782,17 @@ for _, check := range activeCheckers {
 
         diags, err := chk.Run(toolCtx, projectPath)
         results <- runResult{diags, err}
-    }(check) // check passed by value — avoids loop-variable closure capture bug
+    }(check) // passed by value — idiomatic; loop-variable capture fixed in Go ≥1.22
 }
 
 wg.Wait()
 close(results)
 // drain results channel after close
 ```
+
+**Panic recovery** is required in every goroutine. Without it, a panic fires
+`defer wg.Done()` but skips the `results <- runResult{...}` send — `wg.Wait()` unblocks
+with fewer results than expected and no indication of the missing tool's output.
 
 **Single-tool handlers** (`run_lint`, `run_vuln_check`, `run_nil_check`) derive their own
 `context.WithTimeout(ctx, cfg.Timeout)` directly — same per-tool budget, one goroutine.
@@ -580,10 +804,11 @@ Diagnostic with `error: "cancelled"`. This is distinct from `DeadlineExceeded`
 that this tool was slow.
 
 **Note on first-run latency:** govulncheck downloads the Go vulnerability database
-(~40 MB) on its first invocation. This happens inside tool execution, not during
-`install_tools`. On a slow network this can take 1-2 minutes in addition to analysis
-time. The database is cached locally afterward. Agents should call `install_tools` at
-session start and consider increasing `timeout` to `10m` for the first scan.
+(approximately 40 MB, growing over time) on its first invocation. This happens inside
+tool execution, not during `install_tools`. On a slow network this can take 1-2 minutes
+in addition to analysis time. The database is cached locally afterward. Agents should
+call `install_tools` at session start and consider increasing `timeout` to `10m` for
+the first scan.
 
 ---
 
@@ -594,17 +819,46 @@ runs tools from that directory's context.
 
 ### Root Discovery
 
-The server walks **up** from `project_path` looking for `go.work`, then `go.mod`. If
-`project_path` is `/project/monorepo/services/auth` and a `go.work` exists at
-`/project/monorepo/go.work`, the resolved root is `/project/monorepo`. This is the
-directory used for `cmd.Dir` and `go list -m`. The walk stops at the filesystem root
-(`/`). If no `go.work` or `go.mod` is found before reaching the root, the server returns
-a fatal error ("not a Go project").
+The server uses a **two-pass upward walk** from `project_path`:
+
+**Pass 1 — workspace root:** walk from `project_path` toward `/`, checking each directory
+for a `go.work` file. Stop at the first directory that contains `go.work`. If found,
+that directory is the project root.
+
+**Pass 2 — module root (only if Pass 1 finds nothing):** reset to `project_path` and
+walk upward again, checking each directory for a `go.mod` file. Stop at the first
+directory that contains `go.mod`. If found, that directory is the project root.
+
+If both passes reach `/` without a match, return a fatal error ("not a Go project").
+
+**Why two passes, not one:** a single combined pass (stop at the first `go.work` or
+`go.mod`, whichever is closer) would incorrectly stop at a module-local `go.mod` when a
+`go.work` exists higher in the tree. For example, if `project_path` is
+`/project/monorepo/services/auth` (which contains a `go.mod`) and a `go.work` exists at
+`/project/monorepo/go.work`, a single-pass algorithm stops at
+`/project/monorepo/services/auth/go.mod` and misses the workspace root. The two-pass
+approach guarantees `go.work` wins over any closer `go.mod`.
+
+The resolved root is used as `cmd.Dir` for all tool invocations and for `go list -m`.
+
+**Path traversal safety:** `project_path` is validated by the two-pass walk — only
+directories containing a `go.mod` or `go.work` are accepted as roots. A path such as
+`../../../../etc` finds no Go project files and returns a fatal error, not a security
+bypass.
+
+**Monorepos without `go.work`:** Some Go monorepos group multiple modules in subdirectories
+but do not use a `go.work` file (relying instead on `replace` directives or separate
+build pipelines). In this case root discovery will stop at the nearest `go.mod` ancestor.
+The agent must target `project_path` at the specific module directory containing the
+`go.mod` it wants analyzed — there is no upward discovery across module boundaries
+without `go.work`. This is by design: analyzing an unrelated parent directory would
+produce incorrect results. When working with such a monorepo, run a separate check for
+each module directory.
 
 ### Single-module projects
 
-The server checks for `go.work` first, falling back to `go.mod`. Tool invocations use
-`./...` from the project root; this resolves correctly in both cases.
+The server checks for `go.work` first (Pass 1), falling back to `go.mod` (Pass 2). Tool
+invocations use `./...` from the project root; this resolves correctly in both cases.
 
 ### Multi-module workspaces (go.work with multiple `use` directives)
 
@@ -614,8 +868,18 @@ the module containing CWD.
 
 Resolution:
 1. Detect `go.work` at the project root.
-2. Parse the `use` directives (or run `go list -m -json all`) to collect all workspace module paths.
-3. Build `-include-pkgs=<mod1>,<mod2>,...` from all collected module paths.
+2. Parse the `use` directives directly from the `go.work` file to get the relative paths
+   of each member module (e.g. `use ./services/auth`). For each relative path, read the
+   corresponding `go.mod` file and extract its `module` declaration. Do **not** use
+   `go list -m -json all` — that returns all transitive dependencies (potentially hundreds
+   of modules), not just workspace members. Passing them all to `-include-pkgs` would
+   instruct nilaway to scan vendor code and the standard library, causing out-of-memory
+   crashes or multi-minute hangs.
+3. Build `-include-pkgs=<mod1>,<mod2>,...` from all collected module paths. nilaway
+   treats these values as **import path prefixes** — passing `github.com/myorg/repo/services/auth`
+   correctly covers all packages within that module (e.g.
+   `github.com/myorg/repo/services/auth/pkg/db`). Use the root module path from each
+   `go.mod`'s `module` directive, not individual package paths.
 4. Pass `./...` as the target so nilaway evaluates all modules.
 
 For **golangci-lint** and **govulncheck**, `./...` in a workspace context resolves
@@ -633,6 +897,7 @@ error with no `Diagnostics` array:
 - `project_path` does not exist
 - `project_path` has no `go.mod` or `go.work`
 - `.go-quality.yaml` present but unparseable
+- `.go-quality.yaml` `extra_args` contains a reserved server-managed flag
 - `go` binary not on PATH (required for auto-install)
 - `tools` parameter contains an unrecognised checker name
 
@@ -648,7 +913,7 @@ with the `Error` field set; other tools' results are still collected and returne
 
 | Scenario | Classification | Behavior |
 |---|---|---|
-| Tool not installed | Diagnostic | Auto-install once (pre-flight, sequential). If install fails → `Diagnostic.Error` |
+| Tool not installed | Diagnostic | Auto-install once (pre-flight, sequential). If install fails → `Diagnostic.Error` with `"install failed: ..."` format |
 | Tool exit code ≠ 0 | Diagnostic | `Diagnostic.Error`: `"Tool command failed with exit code N. Stderr: <content>"` |
 | Tool times out | Diagnostic | `Diagnostic.Error`: `"timed out after <duration>"` |
 | Tool cancelled | Diagnostic | `Diagnostic.Error`: `"cancelled"` (parent context cancelled, e.g. client disconnect) |
@@ -658,6 +923,7 @@ with the `Error` field set; other tools' results are still collected and returne
 | `project_path` doesn't exist | Fatal | Top-level error, no diagnostics |
 | `project_path` has no `go.mod`/`go.work` | Fatal | Top-level error: `"not a Go project"` |
 | `.go-quality.yaml` unparseable | Fatal | Top-level error: `"config parse error: <detail>"` |
+| `extra_args` contains reserved flag | Fatal | Top-level error: `"config error: extra_args for <tool> contains reserved flag <flag>"` |
 | `go` binary not on PATH | Fatal | Top-level error: `"go binary not found"` |
 | `tools` contains unrecognised value | Fatal | Top-level error: `"unknown tool: \"<value>\". valid values: golangci-lint, govulncheck, nilaway"` |
 
@@ -724,5 +990,7 @@ Will be generated by the `writing-plans` skill after this spec is approved.
 - `/project/cryptospect-cli/.golangci.yml` — existing golangci-lint config (reference)
 - `spec-v1.md` — superseded first draft
 - `spec-v1-ambiguities.md` — review that drove the v1→v2 changes
-- `spec-v2-review.md` — first adversarial review
+- `spec-v2-review1.md` — first adversarial review
 - `spec-v2-review2.md` — second adversarial review with research findings
+- `spec-v2-review3.md` through `spec-v2-review6.md` — subsequent review iterations
+- `spec-v3-review1.md` — adversarial review of v3 (32 findings)
