@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mcp-server-go-quality — Architecture</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;padding:40px 24px;max-width:960px;margin:0 auto;line-height:1.6}
+h2{color:#e6edf3;font-size:28px;margin-bottom:4px}
+.subtitle{color:#8b949e;font-size:16px;margin-bottom:32px}
+.section{margin-bottom:40px}
+.section h3{color:#e6edf3;font-size:20px;margin-bottom:12px;border-bottom:1px solid #21262d;padding-bottom:8px}
+.mockup{border:1px solid #30363d;border-radius:8px;overflow:hidden;background:#161b22}
+.mockup-header{background:#21262d;padding:8px 16px;font-size:13px;color:#8b949e;font-family:monospace;border-bottom:1px solid #30363d}
+.pros-cons{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.pros,.cons{border:1px solid #30363d;border-radius:8px;padding:16px;background:#161b22}
+.pros h4,.cons h4{font-size:14px;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px}
+.pros h4{color:#3fb950}
+.cons h4{color:#f85149}
+.pros ul,.cons ul{padding-left:20px}
+.pros li,.cons li{font-size:14px;margin-bottom:4px;color:#c9d1d9}
+</style>
+</head>
+<body>
+
+<h2>mcp-server-go-quality — Architecture</h2>
+<p class="subtitle">Three-layer functional design with parallel tool execution — based on spec v1</p>
+
+<div class="section">
+  <h3>Client → Server Flow</h3>
+  <div class="mockup">
+    <div class="mockup-header">stdin / stdout (JSON-RPC)</div>
+    <div class="mockup-body" style="padding:16px">
+      <div style="background:#1a1a2e;border-radius:8px;padding:12px;margin-bottom:8px;font-family:monospace;font-size:13px">
+        <div style="color:#e2e2a3;margin-bottom:8px">┌─ MCP Transport ────────────────────────┐</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <span style="background:#16213e;color:#7ec8e3;padding:3px 8px;border-radius:4px;font-size:12px">run_code_checks</span>
+          <span style="background:#16213e;color:#7ec8e3;padding:3px 8px;border-radius:4px;font-size:12px">run_lint</span>
+          <span style="background:#16213e;color:#7ec8e3;padding:3px 8px;border-radius:4px;font-size:12px">run_vuln_check</span>
+          <span style="background:#16213e;color:#7ec8e3;padding:3px 8px;border-radius:4px;font-size:12px">run_nil_check</span>
+          <span style="background:#16213e;color:#7ec8e3;padding:3px 8px;border-radius:4px;font-size:12px">install_tools</span>
+        </div>
+        <div style="color:#e2e2a3">└────────────────────────────────────────┘</div>
+      </div>
+
+      <div style="text-align:center;color:#7ec8e3;font-size:24px;margin:4px 0">⬇</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+        <div style="background:#0f3460;border-radius:8px;padding:10px;text-align:center">
+          <div style="color:#e94560;font-weight:bold;font-size:14px">runLint()</div>
+          <div style="color:#a0aec0;font-size:11px;margin-top:4px">golangci-lint<br>--out-format=json</div>
+          <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:3px;justify-content:center">
+            <span style="background:#16213e;color:#7ec8e3;padding:1px 5px;border-radius:3px;font-size:10px">gocyclo</span>
+            <span style="background:#16213e;color:#7ec8e3;padding:1px 5px;border-radius:3px;font-size:10px">gocognit</span>
+            <span style="background:#16213e;color:#7ec8e3;padding:1px 5px;border-radius:3px;font-size:10px">gosec</span>
+            <span style="background:#16213e;color:#7ec8e3;padding:1px 5px;border-radius:3px;font-size:10px">revive</span>
+            <span style="background:#16213e;color:#7ec8e3;padding:1px 5px;border-radius:3px;font-size:10px">govet</span>
+          </div>
+        </div>
+        <div style="background:#0f3460;border-radius:8px;padding:10px;text-align:center">
+          <div style="color:#e94560;font-weight:bold;font-size:14px">runVuln()</div>
+          <div style="color:#a0aec0;font-size:11px;margin-top:4px">govulncheck<br>-json (NDJSON)</div>
+          <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:3px;justify-content:center">
+            <span style="background:#16213e;color:#7ec8e3;padding:1px 5px;border-radius:3px;font-size:10px">OSV scanning</span>
+            <span style="background:#16213e;color:#7ec8e3;padding:1px 5px;border-radius:3px;font-size:10px">call-graph</span>
+          </div>
+        </div>
+        <div style="background:#0f3460;border-radius:8px;padding:10px;text-align:center">
+          <div style="color:#e94560;font-weight:bold;font-size:14px">runNil()</div>
+          <div style="color:#a0aec0;font-size:11px;margin-top:4px">nilaway<br>-json -pretty-print=false</div>
+          <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:3px;justify-content:center">
+            <span style="background:#16213e;color:#7ec8e3;padding:1px 5px;border-radius:3px;font-size:10px">nil flow</span>
+            <span style="background:#16213e;color:#7ec8e3;padding:1px 5px;border-radius:3px;font-size:10px">inter-proc</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align:center;color:#7ec8e3;font-size:24px;margin:4px 0">⬇</div>
+
+      <div style="background:#1a1a2e;border-radius:8px;padding:12px;font-family:monospace;font-size:13px">
+        <div style="color:#e2e2a3;margin-bottom:8px">┌─ Unified Diagnostic Output ────────────┐</div>
+        <div style="color:#a0aec0;line-height:1.6">
+          { tool: "nilaway",<br>
+          &nbsp;&nbsp;file: "internal/engine/pulse.go",<br>
+          &nbsp;&nbsp;line: 42,<br>
+          &nbsp;&nbsp;message: "Potential nil panic...",<br>
+          &nbsp;&nbsp;native: { /* full raw output */ }<br>
+          }
+        </div>
+        <div style="color:#e2e2a3;margin-top:8px">└────────────────────────────────────────┘</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Parallel Execution (run_code_checks)</h3>
+  <div class="mockup">
+    <div class="mockup-header">Pre-flight → 3 goroutines → collect → sort</div>
+    <div class="mockup-body" style="padding:16px;font-family:monospace;font-size:13px">
+      <div style="color:#a0aec0;line-height:2">
+        <div><span style="color:#e2e2a3">1.</span> validateProjectPath(path) → go.mod / go.work ✓</div>
+        <div><span style="color:#e2e2a3">2.</span> ensureToolsInstalled() → sequential go install</div>
+        <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+          <div style="border:1px dashed #e94560;border-radius:4px;padding:4px"><span style="color:#e94560">goroutine 1</span><br><span style="color:#7ec8e3">golangci-lint</span></div>
+          <div style="border:1px dashed #e94560;border-radius:4px;padding:4px"><span style="color:#e94560">goroutine 2</span><br><span style="color:#7ec8e3">govulncheck</span></div>
+          <div style="border:1px dashed #e94560;border-radius:4px;padding:4px"><span style="color:#e94560">goroutine 3</span><br><span style="color:#7ec8e3">nilaway</span></div>
+        </div>
+        <div style="margin-top:8px"><span style="color:#e2e2a3">3.</span> chan collect → sort.Slice(file, line) → []Diagnostic</div>
+        <div style="margin-top:8px"><span style="color:#e2e2a3">4.</span> shared timeout context (configurable, default 5m)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Key Design Decisions</h3>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>Does</h4>
+      <ul>
+        <li>Prefer pure functions (no hidden state, predictable output)</li>
+        <li>One file per tool parser</li>
+        <li>Location extraction for uniform agent navigation</li>
+        <li>Native raw output preserved for deep context</li>
+        <li>Pre-flight sequential install (no race conditions)</li>
+        <li>bufio.Scanner for NDJSON govulncheck output</li>
+        <li>go.work support (checks go.mod fallback)</li>
+        <li>Configurable timeout in .go-quality.yaml</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>Doesn't</h4>
+      <ul>
+        <li>No caching between calls (YAGNI for now)</li>
+        <li>No stager for slow tools (parallel covers it)</li>
+        <li>No separate gocyclo / gocognit binaries</li>
+        <li>No golangci-lint config duplication</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>File Map</h3>
+  <div class="mockup">
+    <div class="mockup-header">Project Structure</div>
+    <div class="mockup-body" style="padding:16px;font-family:monospace;font-size:12px;color:#a0aec0;line-height:1.8">
+      cmd/mcp-server-go-quality/main.go<br>
+      internal/<br>
+      &nbsp;&nbsp;checkers/<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;checkers.go &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← Diagnostic type<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;golangci_lint.go &nbsp;&nbsp;&nbsp;← exec + parse golangci-lint JSON<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;govulncheck.go &nbsp;&nbsp;&nbsp;&nbsp;← exec + parse NDJSON stream<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;nilaway.go &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← exec + parse nilaway JSON<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;orchestrate.go &nbsp;&nbsp;&nbsp;&nbsp;← RunAllChecks, pre-flight, parallel dispatch<br>
+      &nbsp;&nbsp;config/config.go &nbsp;&nbsp;&nbsp;← .go-quality.yaml loader<br>
+      &nbsp;&nbsp;discovery/tools.go &nbsp;← tool discovery, go install<br>
+      &nbsp;&nbsp;runner/runner.go &nbsp;&nbsp;&nbsp;← CommandRunner interface, ExecRunner<br>
+      &nbsp;&nbsp;version/version.go &nbsp;← VCS metadata, --version flag<br>
+      testdata/sample_project/ &nbsp;← intentional-issue Go project for integration tests
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
