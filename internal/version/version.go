@@ -7,12 +7,7 @@ import (
 
 var Value = "v0.1.0"
 
-var tagged = ""
-
 func String() string {
-	if tagged == "true" {
-		return Value
-	}
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
 		return Value
