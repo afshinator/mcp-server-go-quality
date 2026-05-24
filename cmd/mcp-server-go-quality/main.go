@@ -23,7 +23,7 @@ import (
 )
 
 func main() {
-	configPath := flag.String("config", "", "path to .go-quality.yaml (default: discovered at workspace root)")
+	configPath := flag.String("config", "", "path to .go-quality.yaml (default: .go-quality.yaml in server CWD)")
 	verbose := flag.Bool("verbose", false, "emit diagnostic logging to stderr")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
@@ -56,8 +56,14 @@ func main() {
 			log.Fatalf("config error: %v", err)
 		}
 	} else {
-		cwd, _ := os.Getwd()
-		cfg, _ = config.Load(filepath.Join(cwd, ".go-quality.yaml"))
+		cwd, err := os.Getwd()
+		if err != nil {
+			log.Fatalf("getting working directory: %v", err)
+		}
+		cfg, err = config.Load(filepath.Join(cwd, ".go-quality.yaml"))
+		if err != nil {
+			log.Fatalf("config error: %v", err)
+		}
 	}
 
 	s := mcpserver.NewMCPServer(
@@ -203,7 +209,7 @@ func makeRunAllHandler(cfg config.Config, binDir string, versionCache *discover.
 
 		projectRoot, err := root.Discover(projectPath)
 		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("not a Go project: %v", err)), nil
+			return mcp.NewToolResultError(err.Error()), nil
 		}
 
 		toolNames, err := resolveRequestedTools(req)
@@ -233,7 +239,7 @@ func makeSingleHandler(toolName string, cfg config.Config, binDir string, versio
 
 		projectRoot, err := root.Discover(projectPath)
 		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("not a Go project: %v", err)), nil
+			return mcp.NewToolResultError(err.Error()), nil
 		}
 
 		if err := ensureToolsAvailable(ctx, []string{toolName}, cfg, binDir, versionCache); err != nil {
@@ -286,10 +292,12 @@ func makeInstallHandler(cfg config.Config, binDir string, versionCache *discover
 
 			instResult, err := discover.EnsureInstalled(ctx, versionCache, binDir, name,
 				resolveModulePath(name), toolname.InstallPath(name), versionStr)
+			installCmd := "go install " + toolname.InstallPath(name) + "@" + versionStr
 			if err != nil {
 				response.Failed = append(response.Failed, FailedEntry{
 					Tool:    name,
 					Version: versionStr,
+					Command: installCmd,
 					Stderr:  err.Error(),
 				})
 				continue

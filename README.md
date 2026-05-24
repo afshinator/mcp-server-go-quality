@@ -89,15 +89,17 @@ Install the binary with `go install github.com/afshinator/mcp-server-go-quality/
 
 ## Recommended agent workflow
 
-1. **Install tools once** — call `install_tools` at session start. If any installation fails, the response includes the failed tool, version, and stderr.
+1. **Install tools** — call `install_tools` at session start. Fast no-op if binaries are already at the correct version; only installs missing or outdated tools.
 2. **Run checks** — call `run_code_checks` with `project_path` set to the project root (or any subdirectory — the server walks up to find `go.work` or `go.mod`).
 3. **Process diagnostics** — iterate the `Diagnostic[]` array, filter by `severity` (`"error"` > `"warning"` > `""`), navigate to `file:line:column`, and consult `native` for full raw output (suggested fixes in golangci-lint, CVE IDs and call traces in govulncheck, nil-propagation chains in nilaway).
+
+Agent developers should load **[docs/agents/AGENTS.md](docs/agents/AGENTS.md)** — a compact guide covering the tool contract and processing loop. For error tables, remediation examples, and troubleshooting, see the companion **[reference.md](docs/agents/reference.md)**.
 
 ---
 
 ## Configuration (`.go-quality.yaml`)
 
-Place at the project root. All fields optional — defaults are shown below:
+Place at the project root (or wherever the MCP client launches the server). All fields optional — defaults are shown below:
 
 ```yaml
 # Per-tool timeout budget. Each of the 3 tools gets this independently.
@@ -116,7 +118,7 @@ tools:
     extra_args: ["--exclude-pkgs=github.com/myorg/vendor"]
 ```
 
-Precedence: CLI `--config` flag > `.go-quality.yaml` at project root > compiled-in defaults.
+Precedence: CLI `--config` flag > `.go-quality.yaml` in server working directory > compiled-in defaults.
 
 ---
 
@@ -162,7 +164,7 @@ Supports single-module `go.mod` projects and `go.work` multi-module workspaces. 
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md). This project enforces TDD (red-green-refactor); every source file has a companion `_test.go` file in the same package. Integration tests run against [`testdata/sample_project/`](testdata/sample_project/) — a small Go module with intentional issues for all three tools. Run `make test` for unit tests and `make test-all` for the full suite including integration.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). This project enforces TDD (red-green-refactor); nearly every source file has a companion `_test.go` file in the same package (the `Checker` interface in `checker.go` is exercised indirectly through handler tests). Integration tests run against [`testdata/sample_project/`](testdata/sample_project/) — a small Go module with intentional issues for all three tools. Run `make test` for unit tests and `make test-all` for the full suite including integration.
 
 ---
 

@@ -194,7 +194,7 @@ func parseGovulncheckOutput(output []byte, projectRoot string, workspaceModules 
 	if len(parseErrors) > 0 {
 		diags = append(diags, diagnostic.Diagnostic{
 			Tool:  toolname.Govulncheck,
-			Error: fmt.Sprintf("%d value(s) failed to parse: %s", len(parseErrors), parseErrors[0]),
+			Error: fmt.Sprintf("%d line(s) failed to parse: %s", len(parseErrors), parseErrors[0]),
 		})
 	}
 
