@@ -10,9 +10,15 @@ func TestDiscoverWithGoWork(t *testing.T) {
 	dir := t.TempDir()
 	workDir := filepath.Join(dir, "monorepo")
 	moduleDir := filepath.Join(workDir, "services", "auth")
-	os.MkdirAll(moduleDir, 0755)
-	os.WriteFile(filepath.Join(workDir, "go.work"), []byte("go 1.25\nuse ./services/auth\n"), 0644)
-	os.WriteFile(filepath.Join(moduleDir, "go.mod"), []byte("module github.com/org/auth\ngo 1.25\n"), 0644)
+	if err := os.MkdirAll(moduleDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workDir, "go.work"), []byte("go 1.25\nuse ./services/auth\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(moduleDir, "go.mod"), []byte("module github.com/org/auth\ngo 1.25\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	got, err := Discover(moduleDir)
 	if err != nil {
@@ -25,7 +31,9 @@ func TestDiscoverWithGoWork(t *testing.T) {
 
 func TestDiscoverWithGoMod(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module github.com/org/app\ngo 1.25\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module github.com/org/app\ngo 1.25\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	got, err := Discover(dir)
 	if err != nil {
@@ -39,8 +47,12 @@ func TestDiscoverWithGoMod(t *testing.T) {
 func TestDiscoverWalkUp(t *testing.T) {
 	dir := t.TempDir()
 	subDir := filepath.Join(dir, "pkg", "deep", "path")
-	os.MkdirAll(subDir, 0755)
-	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module github.com/org/app\ngo 1.25\n"), 0644)
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module github.com/org/app\ngo 1.25\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	got, err := Discover(subDir)
 	if err != nil {
@@ -55,9 +67,15 @@ func TestDiscoverGoWorkWinsOverCloserGoMod(t *testing.T) {
 	dir := t.TempDir()
 	workDir := filepath.Join(dir, "monorepo")
 	moduleDir := filepath.Join(workDir, "sub")
-	os.MkdirAll(moduleDir, 0755)
-	os.WriteFile(filepath.Join(workDir, "go.work"), []byte("go 1.25\nuse ./sub\n"), 0644)
-	os.WriteFile(filepath.Join(moduleDir, "go.mod"), []byte("module github.com/org/sub\ngo 1.25\n"), 0644)
+	if err := os.MkdirAll(moduleDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workDir, "go.work"), []byte("go 1.25\nuse ./sub\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(moduleDir, "go.mod"), []byte("module github.com/org/sub\ngo 1.25\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	got, err := Discover(moduleDir)
 	if err != nil {
@@ -78,7 +96,9 @@ func TestDiscoverNotAGoProject(t *testing.T) {
 
 func TestWorkspaceModulesSingleModule(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module github.com/org/app\ngo 1.25\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module github.com/org/app\ngo 1.25\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 	modules, err := WorkspaceModules(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -90,13 +110,23 @@ func TestWorkspaceModulesSingleModule(t *testing.T) {
 
 func TestWorkspaceModulesGoWork(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "go.work"), []byte("go 1.25\nuse ./services/auth\nuse ./lib/common\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "go.work"), []byte("go 1.25\nuse ./services/auth\nuse ./lib/common\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 	authDir := filepath.Join(dir, "services", "auth")
 	commonDir := filepath.Join(dir, "lib", "common")
-	os.MkdirAll(authDir, 0755)
-	os.MkdirAll(commonDir, 0755)
-	os.WriteFile(filepath.Join(authDir, "go.mod"), []byte("module github.com/org/auth\ngo 1.25\n"), 0644)
-	os.WriteFile(filepath.Join(commonDir, "go.mod"), []byte("module github.com/org/common\ngo 1.25\n"), 0644)
+	if err := os.MkdirAll(authDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(commonDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(authDir, "go.mod"), []byte("module github.com/org/auth\ngo 1.25\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(commonDir, "go.mod"), []byte("module github.com/org/common\ngo 1.25\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	modules, err := WorkspaceModules(dir)
 	if err != nil {
