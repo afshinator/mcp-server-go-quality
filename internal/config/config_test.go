@@ -49,7 +49,7 @@ tools:
 `
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".go-quality.yaml")
-	if err := os.WriteFile(path, []byte(yamlContent), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(yamlContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -82,7 +82,7 @@ tools:
 `
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".go-quality.yaml")
-	if err := os.WriteFile(path, []byte(yamlContent), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(yamlContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

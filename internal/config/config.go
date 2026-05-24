@@ -20,7 +20,7 @@ type Config struct {
 }
 
 var reservedByTool = map[string][]string{
-	"golangci-lint": {"--out-format"},
+	"golangci-lint": {"--output.text.path", "--output.json.path", "--out-format"},
 	"govulncheck":   {"-json"},
 	"nilaway":       {"-json", "-pretty-print"},
 }
@@ -54,7 +54,7 @@ func (c Config) Validate() error {
 			continue
 		}
 		for _, arg := range tc.ExtraArgs {
-			argName := strings.SplitN(arg, "=", 2)[0]
+			argName, _, _ := strings.Cut(arg, "=")
 			for _, r := range reserved {
 				if argName == r {
 					return fmt.Errorf("config error: extra_args for %s contains reserved flag %s", toolName, r)
@@ -67,7 +67,7 @@ func (c Config) Validate() error {
 
 func Load(path string) (Config, error) {
 	cfg := Default()
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 — config file read; path from --config flag or project root, legitimate use
 	if err != nil {
 		if os.IsNotExist(err) {
 			return cfg, nil

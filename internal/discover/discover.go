@@ -79,7 +79,7 @@ func ParseModuleVersion(goVersionOutput []byte, modulePath string) string {
 
 func ReadInstalledVersion(ctx context.Context, binDir, toolName, modulePath string) (string, error) {
 	binaryPath := filepath.Join(binDir, toolName)
-	cmd := exec.CommandContext(ctx, "go", "version", "-m", binaryPath)
+	cmd := exec.CommandContext(ctx, "go", "version", "-m", binaryPath) // #nosec G204 — binaryPath from trusted binDir, not user input
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("go version -m %s: %w", binaryPath, err)
@@ -90,7 +90,7 @@ func ReadInstalledVersion(ctx context.Context, binDir, toolName, modulePath stri
 
 func ResolveLatest(ctx context.Context, modulePath string) (string, error) {
 	args := []string{"list", "-m", "-json", modulePath + "@latest"}
-	cmd := exec.CommandContext(ctx, "go", args...)
+	cmd := exec.CommandContext(ctx, "go", args...) // #nosec G204 — args built from internal constants, not user input
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("go list -m -json %s@latest: %w", modulePath, err)
@@ -117,7 +117,6 @@ func EnsureInstalled(
 	cache *Cache,
 	binDir, toolName, modulePath, installPath, requestedVersion string,
 ) (InstallResult, error) {
-
 	if v, ok := cache.Load(toolName); ok && (v == "unknown" || v == requestedVersion) {
 		return InstallResult{Version: v, NewlyInstalled: false}, nil
 	}
@@ -171,7 +170,7 @@ func EnsureInstalled(
 	}
 
 	pkgWithVersion := fmt.Sprintf("%s@%s", installPath, resolved)
-	cmd := exec.CommandContext(ctx, "go", "install", pkgWithVersion)
+	cmd := exec.CommandContext(ctx, "go", "install", pkgWithVersion) // #nosec G204 — install path from internal toolname constants, not user input
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return InstallResult{}, fmt.Errorf(

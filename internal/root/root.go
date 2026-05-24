@@ -46,11 +46,11 @@ func walkUpFor(start, filename string) (string, bool) {
 
 func WorkspaceModules(projectRoot string) ([]string, error) {
 	workFile := filepath.Join(projectRoot, "go.work")
-	data, err := os.ReadFile(workFile)
+	data, err := os.ReadFile(workFile) // #nosec G304 — workFile built from discovered project root, not user input
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			modFile := filepath.Join(projectRoot, "go.mod")
-			modData, modErr := os.ReadFile(modFile)
+			modData, modErr := os.ReadFile(modFile) // #nosec G304 — modFile built from project root
 			if modErr != nil {
 				return nil, fmt.Errorf("reading go.mod: %w", modErr)
 			}
@@ -70,7 +70,7 @@ func WorkspaceModules(projectRoot string) ([]string, error) {
 
 	var modules []string
 	for _, relPath := range moduleDirs {
-		modData, err := os.ReadFile(filepath.Join(projectRoot, relPath, "go.mod"))
+		modData, err := os.ReadFile(filepath.Join(projectRoot, relPath, "go.mod")) // #nosec G304 — paths from go.work use directives, not user input
 		if err != nil {
 			continue
 		}

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestDiagnosticJSONMarshalling(t *testing.T) {
+func TestDiagnosticJSONMarshalling(t *testing.T) { //nolint:gocognit
 	t.Run("full diagnostic with all fields", func(t *testing.T) {
 		d := Diagnostic{
 			Tool:     "golangci-lint",

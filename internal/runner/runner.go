@@ -61,7 +61,7 @@ func Stderr(err error) (string, bool) {
 }
 
 func (r *ExecRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204 — ExecRunner is the controlled subprocess interface, name comes from handler constants
 	if r.Dir != "" {
 		cmd.Dir = r.Dir
 	}
@@ -71,7 +71,6 @@ func (r *ExecRunner) Run(ctx context.Context, name string, args ...string) ([]by
 	cmd.Stderr = &stderr
 
 	err := cmd.Run()
-
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
