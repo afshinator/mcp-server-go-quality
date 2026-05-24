@@ -71,6 +71,42 @@ tools:
 	}
 }
 
+func TestLoadPartialConfig(t *testing.T) {
+	yamlContent := `
+timeout: 3m
+tools:
+  golangci-lint:
+    extra_args: ["--disable-all"]
+  govulncheck:
+    version: v1.2.0
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".go-quality.yaml")
+	if err := os.WriteFile(path, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Timeout != 3*time.Minute {
+		t.Errorf("timeout = %v, want 3m", cfg.Timeout)
+	}
+	if cfg.Tools["golangci-lint"].Version != "v2.11.4" {
+		t.Errorf("golangci-lint version should default to v2.11.4 when omitted, got %q", cfg.Tools["golangci-lint"].Version)
+	}
+	if len(cfg.Tools["golangci-lint"].ExtraArgs) != 1 || cfg.Tools["golangci-lint"].ExtraArgs[0] != "--disable-all" {
+		t.Errorf("golangci-lint extra_args = %v", cfg.Tools["golangci-lint"].ExtraArgs)
+	}
+	if cfg.Tools["govulncheck"].Version != "v1.2.0" {
+		t.Errorf("govulncheck version = %q, want v1.2.0", cfg.Tools["govulncheck"].Version)
+	}
+	if cfg.Tools["nilaway"].Version != "latest" {
+		t.Errorf("nilaway version should default to latest when omitted, got %q", cfg.Tools["nilaway"].Version)
+	}
+}
+
 func TestValidateExtraArgsReservedFlag(t *testing.T) {
 	cfg := Config{
 		Timeout: 5 * time.Minute,

@@ -18,7 +18,7 @@ func ResolveGoBinDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("go env GOBIN: %w", err)
 	}
-	if binDir := strings.TrimSpace(string(out)); binDir != "" && binDir != "\n" {
+	if binDir := strings.TrimSpace(string(out)); binDir != "" {
 		return binDir, nil
 	}
 
@@ -77,9 +77,9 @@ func ParseModuleVersion(goVersionOutput []byte, modulePath string) string {
 	return "unknown"
 }
 
-func ReadInstalledVersion(binDir, toolName, modulePath string) (string, error) {
+func ReadInstalledVersion(ctx context.Context, binDir, toolName, modulePath string) (string, error) {
 	binaryPath := filepath.Join(binDir, toolName)
-	cmd := exec.Command("go", "version", "-m", binaryPath)
+	cmd := exec.CommandContext(ctx, "go", "version", "-m", binaryPath)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("go version -m %s: %w", binaryPath, err)
@@ -123,7 +123,7 @@ func EnsureInstalled(
 	}
 
 	if requestedVersion != "latest" {
-		installed, err := ReadInstalledVersion(binDir, toolName, modulePath)
+		installed, err := ReadInstalledVersion(ctx, binDir, toolName, modulePath)
 		if err == nil && (installed == "unknown" || installed == requestedVersion) {
 			cache.Store(toolName, installed)
 			return InstallResult{Version: installed, NewlyInstalled: false}, nil
@@ -144,7 +144,7 @@ func EnsureInstalled(
 	}
 
 	if requestedVersion != "latest" {
-		installed, err := ReadInstalledVersion(binDir, toolName, modulePath)
+		installed, err := ReadInstalledVersion(ctx, binDir, toolName, modulePath)
 		if err == nil && (installed == "unknown" || installed == requestedVersion) {
 			cache.Store(toolName, installed)
 			return InstallResult{Version: installed, NewlyInstalled: false}, nil
