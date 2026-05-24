@@ -25,9 +25,9 @@ func Rel(projectRoot, inputPath string) string {
 		}
 	}
 
-	cleanRoot := filepath.Clean(projectRoot)
+	cleanRoot := filepath.Clean(projectRoot) + string(filepath.Separator)
 	if trimmed := strings.TrimPrefix(cleaned, cleanRoot); trimmed != cleaned {
-		return strings.TrimPrefix(trimmed, string(filepath.Separator))
+		return trimmed
 	}
 
 	return cleaned
