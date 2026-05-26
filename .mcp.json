@@ -6,11 +6,7 @@
     },
     "context7": {
       "command": "npx",
-      "args": ["@upstash/context7-mcp"]
-    },
-    "vault-filesystem": {
-      "command": "npx",
-      "args": ["@modelcontextprotocol/server-filesystem", "/vault", "/project"]
+      "args": ["@upstash/context7-mcp", "@upstash/context7-mcp"]
     }
   }
 }
