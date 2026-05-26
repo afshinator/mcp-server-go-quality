@@ -41,8 +41,9 @@ type Cache struct {
 	mu   sync.RWMutex
 	data map[string]string // toolName → installed concrete semver
 
-	resolved        sync.Map                                                     // toolName → resolved semver for "latest" (process lifetime)
-	resolveLatestFn func(ctx context.Context, modulePath string) (string, error) // nil = use ResolveLatest
+	resolved        sync.Map                                                                                                       // toolName → resolved semver for "latest" (process lifetime)
+	resolveLatestFn func(ctx context.Context, modulePath string) (string, error)                                                   // nil = use ResolveLatest
+	installFn       func(ctx context.Context, cache *Cache, binDir, toolName, installPath, resolved string) (InstallResult, error) // nil = use installBinary
 }
 
 func NewCache() *Cache {
@@ -246,5 +247,8 @@ func EnsureInstalled(
 		return InstallResult{Version: v}, nil
 	}
 
+	if cache.installFn != nil {
+		return cache.installFn(ctx, cache, binDir, toolName, installPath, resolved)
+	}
 	return installBinary(ctx, cache, binDir, toolName, installPath, resolved)
 }
