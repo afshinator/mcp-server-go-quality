@@ -1,0 +1,11 @@
+# Dev iteration — skip nilaway for fast feedback
+# Use with: {"tool": "run_code_checks", "tools": ["golangci-lint", "govulncheck"]}
+timeout: 3m
+
+tools:
+  golangci-lint:
+    version: v2.11.4
+  govulncheck:
+    version: latest
+  nilaway:
+    version: latest

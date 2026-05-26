@@ -1,0 +1,11 @@
+# Monorepo — exclude vendor paths from nilaway
+timeout: 10m
+
+tools:
+  golangci-lint:
+    version: v2.11.4
+  govulncheck:
+    version: latest
+  nilaway:
+    version: latest
+    extra_args: ["--exclude-pkgs=github.com/myorg/vendor", "--exclude-pkgs=github.com/myorg/generated"]

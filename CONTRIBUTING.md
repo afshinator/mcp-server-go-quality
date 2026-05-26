@@ -34,6 +34,7 @@ Package structure, design decisions, and implementation history are in `docs/sup
 
 ## Pull request checklist
 
+- [ ] Star the repo please
 - [ ] Tests pass: `make test && make test-all`
 - [ ] Lint clean: `make lint`
 - [ ] Formatting clean: `gofumpt -d .` shows no diffs

@@ -1,0 +1,29 @@
+# Example: Run go-quality in your own CI pipeline
+#
+# This workflow calls the MCP server via stdio to check your Go code.
+# Requires the server binary on PATH, or use go run.
+
+name: Go Quality Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Install go-quality
+        run: go install github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@latest
+
+      - name: Run checks
+        run: |
+          echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"run_code_checks","arguments":{"project_path":"."}}}' | mcp-server-go-quality 2>/dev/null | jq -r '.result.content[0].text'

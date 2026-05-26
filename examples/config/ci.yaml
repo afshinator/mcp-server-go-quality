@@ -1,0 +1,11 @@
+# CI pipeline — longer timeout for cold caches
+timeout: 10m
+
+tools:
+  golangci-lint:
+    version: v2.11.4
+    extra_args: ["--timeout=5m"]
+  govulncheck:
+    version: latest
+  nilaway:
+    version: latest

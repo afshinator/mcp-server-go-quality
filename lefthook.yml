@@ -1,0 +1,12 @@
+pre-commit:
+  parallel: true
+  commands:
+    gofumpt:
+      glob: "*.go"
+      run: gofumpt -w {staged_files} && git add {staged_files}
+    go-vet:
+      glob: "*.go"
+      run: go vet ./...
+    golangci-lint:
+      glob: "*.go"
+      run: golangci-lint run --new-from-rev=HEAD~1 ./...
