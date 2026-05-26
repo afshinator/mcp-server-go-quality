@@ -2,6 +2,7 @@ package checkers
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"testing"
 
@@ -171,6 +172,34 @@ func TestParseGovulncheckFindingBeforeOSV(t *testing.T) {
 	}
 	if diags[0].Message != "Infinite loop in HTTP/2 transport" {
 		t.Errorf("message = %q, want resolved osv summary", diags[0].Message)
+	}
+}
+
+func TestParseGovulncheckOutputNativeSetOnParseError(t *testing.T) {
+	input := `not valid json at all`
+	diags, err := parseGovulncheckOutput([]byte(input), "/project", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(diags) == 0 {
+		t.Fatal("expected at least one diagnostic for unparseable input")
+	}
+
+	// The parse error diagnostic is always appended last.
+	errDiag := diags[len(diags)-1]
+	if errDiag.Error == "" {
+		t.Error("expected non-empty Error field in parse error diagnostic")
+	}
+	if errDiag.Native == nil {
+		t.Error("Native field must not be nil for parse error diagnostic")
+	}
+
+	var parseErrors []string
+	if err := json.Unmarshal(errDiag.Native, &parseErrors); err != nil {
+		t.Errorf("Native field should be JSON array of error strings, unmarshal failed: %v", err)
+	}
+	if len(parseErrors) == 0 {
+		t.Error("Native array of parse errors must not be empty")
 	}
 }
 

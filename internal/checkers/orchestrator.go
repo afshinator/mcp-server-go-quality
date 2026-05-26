@@ -33,17 +33,22 @@ func RunAllChecks(
 		wg.Add(1)
 		go func(checker Checker) {
 			defer wg.Done()
+
+			// Capture name before any potentially-panicking call; recovery block
+			// uses this variable so it never calls a method on a nil interface.
+			toolName := "unknown"
 			defer func() {
 				if rec := recover(); rec != nil {
 					results <- runResult{
 						diagnostics: []diagnostic.Diagnostic{{
-							Tool:  checker.Name(),
+							Tool:  toolName,
 							Error: fmt.Sprintf("internal panic: %v", rec),
 						}},
 					}
 				}
 			}()
 
+			toolName = checker.Name() // panics here if checker is nil — recovery uses "unknown"
 			toolCtx, toolCancel := context.WithTimeout(ctx, timeout)
 			defer toolCancel()
 
@@ -51,7 +56,7 @@ func RunAllChecks(
 			if err != nil {
 				results <- runResult{
 					diagnostics: []diagnostic.Diagnostic{{
-						Tool:  checker.Name(),
+						Tool:  toolName,
 						Error: formatCheckerError(toolCtx, timeout, err),
 					}},
 				}

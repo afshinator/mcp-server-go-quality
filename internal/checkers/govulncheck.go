@@ -168,18 +168,27 @@ func parseGovulncheckOutput(output []byte, projectRoot string, workspaceModules 
 			column = entry.Position.Column
 		}
 
-		findingRaw, _ := json.Marshal(f)
+		findingRaw, err := json.Marshal(f)
+		if err != nil {
+			findingRaw = nil
+		}
 
 		var osvRaw json.RawMessage
 		if osv, ok := osvMap[f.OSV]; ok {
-			osvRaw, _ = json.Marshal(osv)
+			osvRaw, err = json.Marshal(osv)
+			if err != nil {
+				osvRaw = nil
+			}
 		}
 
 		container := GovulncheckNativeContainer{
 			Finding: findingRaw,
 			OSV:     osvRaw,
 		}
-		native, _ := json.Marshal(container)
+		native, err := json.Marshal(container)
+		if err != nil {
+			native = nil
+		}
 
 		diags = append(diags, diagnostic.Diagnostic{
 			Tool:    toolname.Govulncheck,
@@ -192,9 +201,14 @@ func parseGovulncheckOutput(output []byte, projectRoot string, workspaceModules 
 	}
 
 	if len(parseErrors) > 0 {
+		nativeRaw, err := json.Marshal(parseErrors)
+		if err != nil {
+			nativeRaw = nil
+		}
 		diags = append(diags, diagnostic.Diagnostic{
-			Tool:  toolname.Govulncheck,
-			Error: fmt.Sprintf("%d line(s) failed to parse: %s", len(parseErrors), parseErrors[0]),
+			Tool:   toolname.Govulncheck,
+			Error:  fmt.Sprintf("failed to parse govulncheck output: %s", parseErrors[0]),
+			Native: nativeRaw,
 		})
 	}
 

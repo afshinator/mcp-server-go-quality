@@ -367,6 +367,15 @@ func marshalDiagnostics(diags []diagnostic.Diagnostic) (*mcp.CallToolResult, err
 }
 
 func marshalInstallResult(result InstallResult) (*mcp.CallToolResult, error) {
+	if result.Installed == nil {
+		result.Installed = []ToolEntry{}
+	}
+	if result.AlreadyPresent == nil {
+		result.AlreadyPresent = []ToolEntry{}
+	}
+	if result.Failed == nil {
+		result.Failed = []FailedEntry{}
+	}
 	res, err := mcp.NewToolResultJSON(result)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("marshaling results: %v", err)), nil

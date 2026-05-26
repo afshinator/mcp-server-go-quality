@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -120,6 +121,24 @@ func TestFormatCheckerErrorCancelledError(t *testing.T) {
 	result := formatCheckerError(context.Background(), 5*time.Minute, context.Canceled)
 	if result != "cancelled" {
 		t.Errorf("got %q, want 'cancelled'", result)
+	}
+}
+
+func TestRunAllNilHandlerDoesNotCrash(t *testing.T) {
+	r := &mockRunner{outputs: map[string][]byte{}}
+
+	// Passing a nil Checker interface currently crashes the whole process.
+	// After the fix it must produce an error Diagnostic without panicking.
+	diags := RunAllChecks(context.Background(), r, []Checker{nil}, "/project/myapp", 5*time.Second)
+
+	if len(diags) == 0 {
+		t.Error("expected at least one error diagnostic for nil handler, got none")
+	}
+	if len(diags) > 0 && diags[0].Error == "" {
+		t.Error("expected non-empty Error field in diagnostic for nil handler")
+	}
+	if len(diags) > 0 && !strings.Contains(diags[0].Error, "internal panic") {
+		t.Errorf("expected panic-recovery error, got %q", diags[0].Error)
 	}
 }
 
