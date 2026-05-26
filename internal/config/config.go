@@ -65,6 +65,15 @@ func (c Config) Validate() error {
 	return nil
 }
 
+// LoadRequired is like Load but returns an error if the file does not exist.
+// Use when the path was explicitly specified by the caller (e.g. --config flag).
+func LoadRequired(path string) (Config, error) {
+	if _, err := os.Stat(path); err != nil {
+		return Config{}, fmt.Errorf("config file not found: %w", err)
+	}
+	return Load(path)
+}
+
 func Load(path string) (Config, error) {
 	cfg := Default()
 	data, err := os.ReadFile(path) // #nosec G304 — config file read; path from --config flag or project root, legitimate use

@@ -52,7 +52,7 @@ func main() {
 
 	var cfg config.Config
 	if *configPath != "" {
-		cfg, err = config.Load(*configPath)
+		cfg, err = config.LoadRequired(*configPath)
 		if err != nil {
 			log.Fatalf("config error: %v", err)
 		}

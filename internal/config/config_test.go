@@ -136,6 +136,28 @@ func TestReservedFlags(t *testing.T) {
 	}
 }
 
+func TestLoadRequiredMissingFile(t *testing.T) {
+	_, err := LoadRequired(filepath.Join(t.TempDir(), "nonexistent.yaml"))
+	if err == nil {
+		t.Error("LoadRequired must return an error when file does not exist, got nil")
+	}
+}
+
+func TestLoadRequiredExistingFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte("timeout: 3m\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadRequired(path)
+	if err != nil {
+		t.Fatalf("LoadRequired returned unexpected error: %v", err)
+	}
+	if cfg.Timeout != 3*time.Minute {
+		t.Errorf("timeout = %v, want 3m", cfg.Timeout)
+	}
+}
+
 func TestResolveTimeout(t *testing.T) {
 	cfg := Default()
 	if cfg.ResolveTimeout() != 5*time.Minute {
