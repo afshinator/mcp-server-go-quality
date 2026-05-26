@@ -3,6 +3,10 @@
     "qmd": {
       "command": "npx",
       "args": ["@tobilu/qmd", "mcp"]
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["@upstash/context7-mcp", "@upstash/context7-mcp"]
     }
   }
 }
