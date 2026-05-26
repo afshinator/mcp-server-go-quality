@@ -5,3 +5,6 @@
 
 # code-style
 - Prefer pure functions whenever possible during implementation. Confidence: 0.85
+
+# documentation
+- Save plan files to the project repo's docs directory (e.g., docs/superpowers/plans/) not to ~/.commandcode/plans/, so they are accessible to everyone not just commandcode. Confidence: 0.70

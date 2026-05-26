@@ -1,0 +1,9 @@
+{
+  "name": "mcp-server-go-quality",
+  "description": "One MCP server for Go code quality — golangci-lint, govulncheck, and nilaway with unified Diagnostic[] output, parallel execution, and auto-install.",
+  "keywords": ["go", "golang", "linting", "security", "vulnerability", "code-quality", "mcp", "mcp-server"],
+  "license": "MIT",
+  "author": "afshinator",
+  "homepage": "https://github.com/afshinator/mcp-server-go-quality",
+  "repository": "https://github.com/afshinator/mcp-server-go-quality"
+}

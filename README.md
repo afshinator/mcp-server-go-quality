@@ -1,4 +1,4 @@
-<!-- repo image -->
+![mcp-server-go-quality](./project-image-01.png)
 
 # mcp-server-go-quality
 
@@ -6,10 +6,11 @@
 
 ---
 
-[![Build](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![Go](https://img.shields.io/badge/Go-1.25-blue)]()
+[![Test](https://github.com/afshinator/mcp-server-go-quality/actions/workflows/test.yml/badge.svg)](https://github.com/afshinator/mcp-server-go-quality/actions/workflows/test.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/afshinator/mcp-server-go-quality)](https://goreportcard.com/report/github.com/afshinator/mcp-server-go-quality)
+[![Go Reference](https://pkg.go.dev/badge/github.com/afshinator/mcp-server-go-quality.svg)](https://pkg.go.dev/github.com/afshinator/mcp-server-go-quality)
 [![MCP](https://img.shields.io/badge/MCP-2025--03--26-blueviolet)]()
-[![License](https://img.shields.io/badge/license-MIT-green)]()
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ---
 

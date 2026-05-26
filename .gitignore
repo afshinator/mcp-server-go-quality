@@ -31,6 +31,12 @@ Thumbs.db
 # Brainstorm / visual companion artifacts
 .superpowers/
 
+# Command Code local state
+.commandcode/
+
 # Environment
 .env
 .env.local
+
+# Built binary at root (build output goes to bin/)
+/mcp-server-go-quality
