@@ -291,6 +291,7 @@ func makeInstallHandler(cfg config.Config, binDir string, versionCache *discover
 				versionStr = tc.Version
 			}
 
+			versionCache.InvalidateResolved(name) // install_tools always forces fresh resolution
 			instResult, err := discover.EnsureInstalled(ctx, versionCache, binDir, name,
 				resolveModulePath(name), toolname.InstallPath(name), versionStr)
 			installCmd := "go install " + toolname.InstallPath(name) + "@" + versionStr
