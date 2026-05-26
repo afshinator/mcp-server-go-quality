@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -265,7 +266,7 @@ func makeSingleHandler(toolName string, cfg config.Config, binDir string, versio
 		if runErr != nil {
 			diags = []diagnostic.Diagnostic{{
 				Tool:  toolName,
-				Error: formatHandlerError(toolCtx, toolName, timeout, runErr),
+				Error: formatHandlerError(toolCtx, timeout, runErr),
 			}}
 		}
 
@@ -346,11 +347,11 @@ func resolveModulePath(toolName string) string {
 	}
 }
 
-func formatHandlerError(ctx context.Context, toolName string, timeout time.Duration, err error) string {
-	if ctx.Err() == context.DeadlineExceeded {
+func formatHandlerError(ctx context.Context, timeout time.Duration, err error) string {
+	if errors.Is(err, context.DeadlineExceeded) {
 		return fmt.Sprintf("timed out after %s", timeout)
 	}
-	if ctx.Err() == context.Canceled {
+	if errors.Is(err, context.Canceled) {
 		return "cancelled"
 	}
 	return err.Error()

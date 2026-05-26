@@ -2,6 +2,7 @@ package checkers
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -94,6 +95,31 @@ func TestRunAllSortsResults(t *testing.T) {
 	}
 	if diags[0].File != "a.go" || diags[1].File != "a.go" || diags[2].File != "z.go" {
 		t.Errorf("diagnostics not sorted by file: %v", diags)
+	}
+}
+
+func TestFormatCheckerErrorPrefersTrueErrorOverContextState(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // context is cancelled, but err is a real tool failure
+
+	realErr := errors.New("Tool command failed with exit code 1. Stderr: syntax error")
+	result := formatCheckerError(ctx, 5*time.Minute, realErr)
+	if result != realErr.Error() {
+		t.Errorf("got %q, want real error %q (context state should not shadow tool failure)", result, realErr.Error())
+	}
+}
+
+func TestFormatCheckerErrorDeadlineExceededError(t *testing.T) {
+	result := formatCheckerError(context.Background(), 5*time.Minute, context.DeadlineExceeded)
+	if result != "timed out after 5m0s" {
+		t.Errorf("got %q, want timeout message", result)
+	}
+}
+
+func TestFormatCheckerErrorCancelledError(t *testing.T) {
+	result := formatCheckerError(context.Background(), 5*time.Minute, context.Canceled)
+	if result != "cancelled" {
+		t.Errorf("got %q, want 'cancelled'", result)
 	}
 }
 

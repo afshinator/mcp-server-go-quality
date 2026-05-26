@@ -2,6 +2,7 @@ package checkers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -51,7 +52,7 @@ func RunAllChecks(
 				results <- runResult{
 					diagnostics: []diagnostic.Diagnostic{{
 						Tool:  checker.Name(),
-						Error: formatCheckerError(toolCtx, checker.Name(), timeout, err),
+						Error: formatCheckerError(toolCtx, timeout, err),
 					}},
 				}
 				return
@@ -80,11 +81,11 @@ func RunAllChecks(
 	return allDiags
 }
 
-func formatCheckerError(ctx context.Context, toolName string, timeout time.Duration, err error) string {
-	if ctx.Err() == context.DeadlineExceeded {
+func formatCheckerError(ctx context.Context, timeout time.Duration, err error) string {
+	if errors.Is(err, context.DeadlineExceeded) {
 		return fmt.Sprintf("timed out after %s", timeout)
 	}
-	if ctx.Err() == context.Canceled {
+	if errors.Is(err, context.Canceled) {
 		return "cancelled"
 	}
 	return err.Error()
