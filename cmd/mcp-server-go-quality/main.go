@@ -187,7 +187,7 @@ func ensureToolsAvailable(ctx context.Context, toolNames []string, cfg config.Co
 	for _, name := range toolNames {
 		tc, ok := cfg.Tools[name]
 		if !ok {
-			continue
+			return fmt.Errorf("tool %q not found in config (this is an internal error — report it)", name)
 		}
 		result, err := discover.EnsureInstalled(ctx, versionCache, binDir, name,
 			resolveModulePath(name), toolname.InstallPath(name), tc.Version)
@@ -284,9 +284,6 @@ func makeInstallHandler(cfg config.Config, binDir string, versionCache *discover
 		response := InstallResult{}
 		for _, name := range toolNames {
 			versionStr := "latest"
-			if name == toolname.GolangciLint {
-				versionStr = "v2.11.4"
-			}
 			if tc, ok := cfg.Tools[name]; ok && tc.Version != "" {
 				versionStr = tc.Version
 			}
