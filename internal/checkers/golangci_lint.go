@@ -55,7 +55,7 @@ func (h *GolangciLintHandler) Run(ctx context.Context, r runner.CommandRunner, p
 	}
 
 	if exitErr != nil && len(diags) == 0 {
-		return nil, fmt.Errorf("golangci-lint: %w", exitErr)
+		return nil, exitErr
 	}
 
 	return diags, nil

@@ -2,7 +2,9 @@ package checkers
 
 import (
 	"context"
+	"errors"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/afshinator/mcp-server-go-quality/internal/discover"
@@ -107,6 +109,24 @@ func TestParseGolangciLintPathNormalization(t *testing.T) {
 	}
 	if diags[0].File != "cmd/main.go" {
 		t.Errorf("file = %q, want cmd/main.go", diags[0].File)
+	}
+}
+
+func TestGolangciLintHandlerExitErrorNotPrefixed(t *testing.T) {
+	exitErr := &runner.ExitError{ExitCode: 1, Stderr: "no linter config found"}
+	r := &mockRunner{err: exitErr}
+	handler := NewGolangciLintHandler("/fake/bin")
+
+	_, err := handler.Run(context.Background(), r, "/project/myapp")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if strings.HasPrefix(err.Error(), "golangci-lint: ") {
+		t.Errorf("error must not have tool prefix, got: %q", err.Error())
+	}
+	var e *runner.ExitError
+	if !errors.As(err, &e) {
+		t.Errorf("error should unwrap to *runner.ExitError, got %T: %v", err, err)
 	}
 }
 
