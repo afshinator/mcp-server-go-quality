@@ -9,8 +9,8 @@ This file IS committed to the project git repo.
 
 **Name:** mcp-server-go-quality
 **Purpose:** MCP server wrapping Go code quality tools (golangci-lint, govulncheck, nilaway) for AI agent consumption
-**Stack:** Go 1.25 (not yet initialized — greenfield)
-**Status:** Design complete, implementation not started
+**Stack:** Go 1.25
+**Status:** Implemented and tested. All 15 plan tasks complete. All 10 adversarial review findings fixed.
 
 ## Key Research
 
@@ -33,9 +33,9 @@ Key conclusion: `gocyclo` and `gocognit` are built into golangci-lint — no sep
 
 | File | Purpose |
 |---|---|
-| `docs/superpowers/specs/2026-05-23-go-quality-mcp-design.md` | Full design spec |
-| `docs/superpowers/plans/2026-05-23-go-quality-mcp-plan.md` | 15-task TDD implementation plan |
-| `docs/architecture.html` | Architecture diagram (preview: port 3011) |
+| `docs/superpowers/specs/spec-v3.md` | Full design spec |
+| `docs/superpowers/plans/` | Multi-phase TDD implementation plans |
+| `docs/architecture.html` | Architecture diagram |
 
 ---
 
@@ -59,23 +59,9 @@ go run ./cmd/mcp-server-go-quality/
 
 ## Implementation Plan
 
-15 TDD tasks in `docs/superpowers/plans/2026-05-23-go-quality-mcp-plan.md`:
+All 15 TDD tasks complete (see `docs/superpowers/plans/`).
 
-1. Go module + dir structure
-2. Diagnostic type
-3. Version package
-4. Config loading (.go-quality.yaml)
-5. Tool discovery & install
-6. Command runner interface
-7. golangci-lint handler + parser
-8. govulncheck handler + NDJSON parser
-9. nilaway handler + parser
-10. runAll parallel orchestrator
-11. MCP server entry point (5 tools)
-12. testdata sample project
-13. Integration tests
-14. Makefile
-15. Quality suite (lint, vet, format)
+All 10 adversarial review findings fixed (see `docs/superpowers/plans/2026-05-26-adversarial-review-fixes.md`).
 
 ---
 

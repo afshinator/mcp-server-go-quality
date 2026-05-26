@@ -29,7 +29,7 @@ Based on overlap analysis (see `docs/tools-research.md`):
 
 | Tool | Purpose | Output Format | Built Into golangci-lint? | Pinned Default Version |
 |---|---|---|---|---|
-| `golangci-lint` | Linting + complexity (`gocyclo`, `gocognit`) + security patterns (`gosec`) | JSON (`--out-format=json`) | N/A | `v2.11.4` |
+| `golangci-lint` | Linting + complexity (`gocyclo`, `gocognit`) + security patterns (`gosec`) | JSON (`--output.json.path stdout` + `--output.text.path stderr`) | N/A | `v2.11.4` |
 | `govulncheck` | CVE scanning via call-graph analysis | JSON-lines (`-json`) | No | `latest` |
 | `nilaway` | Deep inter-procedural nil-panic detection | JSON (`-json -pretty-print=false`) | No (plugin possible) | `latest` |
 
@@ -609,7 +609,7 @@ timeout: 5m                          # per-tool deadline (default: 5m)
 tools:
   golangci-lint:
     version: v2.11.4                 # pinned default; override with care
-    extra_args: ["--no-config"]      # valid v2 flag; prepended before required flags
+    extra_args: ["--disable-all"]     # example extra flag; appended after required flags
   govulncheck:
     version: latest
     extra_args: []                   # positional targets (e.g. ./...) are added automatically
@@ -620,11 +620,13 @@ tools:
 
 No file present → all tools run at their pinned defaults with zero extra args.
 
-Server's required flags (like `--out-format=json`) are always prepended to the command
-before `extra_args`. Because some tools use last-flag-wins flag parsing (e.g. golangci-lint
-with pflag), a conflicting flag in `extra_args` appearing after a required flag could
-override it. To prevent this, the server validates `extra_args` at config load time and
-rejects any argument that conflicts with a server-managed flag, returning a fatal config
+Server's required flags (`--output.text.path stderr --output.json.path stdout` for
+golangci-lint, `-json` for govulncheck, `-json -pretty-print=false` for nilaway) are
+always prepended to the command, with `extra_args` appended after them. Because some
+tools use last-flag-wins flag parsing (e.g. golangci-lint with pflag), a conflicting
+flag in `extra_args` appearing after a required flag could override it. To prevent this,
+the server validates `extra_args` at config load time and rejects any argument that
+conflicts with a server-managed flag.
 error: `"config error: extra_args for <tool> contains reserved flag <flag>"`.
 
 ### `latest` Resolution Policy
@@ -952,7 +954,7 @@ as out-of-band notifications).
 - **Integration tests:** real `exec.Command` against `testdata/sample_project/` — a small Go project with intentional issues for each tool to detect.
 - **Edge cases:** missing tools, broken config, empty project, non-Go directory, timeout, multi-module workspace.
 - **Mockable `CommandRunner` interface** — handlers accept `CommandRunner` so tests can swap real subprocess execution for deterministic test doubles without running the actual tools.
-- **`extra_args` test data:** use only verified flags (`--no-config` or `--disable-all` for golangci-lint; `./...` positional target for govulncheck). Do not use `--fast` or `--scan=package` — these are not valid flags in their respective tools' current versions.
+- **`extra_args` test data:** use only verified flags (`--disable-all` for golangci-lint; `./...` positional target for govulncheck). Do not use `--fast` or `--scan=package` — these are not valid flags in their respective tools' current versions.
 
 ### testdata/sample_project Minimum Content
 

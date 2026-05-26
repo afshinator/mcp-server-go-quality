@@ -1,0 +1,14 @@
+version: "2"
+run:
+  timeout: 2m
+linters:
+  default: standard
+  enable:
+    - gocyclo
+    - gocognit
+    - gosec
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
