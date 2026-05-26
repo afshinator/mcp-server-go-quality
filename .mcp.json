@@ -3,6 +3,14 @@
     "qmd": {
       "command": "npx",
       "args": ["@tobilu/qmd", "mcp"]
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["@upstash/context7-mcp"]
+    },
+    "vault-filesystem": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-filesystem", "/vault", "/project"]
     }
   }
 }

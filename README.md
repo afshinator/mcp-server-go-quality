@@ -15,24 +15,16 @@
 
 ## What it does
 
-Designed for **AI coding agents** (Claude Code, Codex, OpenCode) that need to check Go code quality without managing three separate CLIs, parsing three incompatible output formats, or waiting for tools to install.
-
-This MCP server exposes the three essential Go quality tools as a single interface. Agents call one tool (`run_code_checks`) and receive one flat, sorted `Diagnostic[]` array — regardless of how many checkers ran. Tools that aren't installed are silently fetched in a pre-flight step. All three run in parallel under independent timeout budgets.
-
-It also works in CI pipelines where you want a single source of truth for linting, vulnerability scanning, and nil-panic detection.
-
----
-
-## Why not just run the tools directly?
+Wraps three Go code quality tools into a single MCP interface. Designed for **AI coding agents** (Claude Code, Codex, OpenCode) but also useful for CI pipelines and local development. Call one tool (`run_code_checks`) and get a flat, sorted `Diagnostic[]` array — all three checkers run in parallel under independent timeouts. Tools auto-install on first use.
 
 | Concern | Raw CLI | This server |
 |---|---|---|
-| Entry points | 3 separate `go install` + `go run` invocations | 1 MCP tool call |
-| Output format | 3 incompatible schemas (JSON, NDJSON, structured map) | 1 unified `Diagnostic[]` array |
-| Tool install | Manual per tool, per machine | Pre-flight auto-install with version pinning |
+| Entry points | 3 separate `go install` + invocation | 1 MCP tool call |
+| Output format | 3 incompatible schemas | 1 unified `Diagnostic[]` array |
+| Tool install | Manual per machine | Auto-install with version pinning |
 | Concurrency | Sequential by default | Parallel goroutines, per-tool timeouts |
-| Error handling | Parse exit codes and stderr manually | Canonical `error` field per diagnostic, panic recovery per handler |
-| Path normalization | Raw absolute paths from each tool | Relative to project root, escape-traversal rejected |
+| Error handling | Parse exit codes and stderr manually | Canonical `error` field per diagnostic, panic recovery |
+| Path normalization | Raw absolute paths | Relative to project root |
 | Workspace support | Manual `go.work` parsing | Two-pass root discovery (`go.work` > `go.mod`) |
 
 ---
@@ -41,9 +33,9 @@ It also works in CI pipelines where you want a single source of truth for lintin
 
 | Tool | Version | Checks |
 |---|---|---|
-| [golangci-lint](https://golangci-lint.run) | **v2.11.4** (pinned) | Lint violations, `gocyclo`/`gocognit` complexity, `gosec` security patterns. Pinned because its JSON schema changed across major versions. |
-| [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) | latest | Known CVEs in your dependency graph via call-graph analysis. Only reports vulnerabilities **reachable** from your code. |
-| [nilaway](https://github.com/uber-go/nilaway) | latest | Inter-procedural nil-panic paths the Go compiler won't catch. Whole-program analysis, no annotations required to start. |
+| [golangci-lint](https://golangci-lint.run) | **v2.11.4** (pinned) | Lint violations, complexity (`gocyclo`/`gocognit`), security (`gosec`) |
+| [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) | latest | Known CVEs reachable from your code via call-graph analysis |
+| [nilaway](https://github.com/uber-go/nilaway) | latest | Inter-procedural nil-panic paths the compiler won't catch |
 
 ---
 
@@ -52,73 +44,10 @@ It also works in CI pipelines where you want a single source of truth for lintin
 | Tool | Description |
 |---|---|
 | `run_code_checks` | Run all 3 checkers in parallel (or a subset via `tools` param). Returns sorted `Diagnostic[]`. |
-| `run_lint` | Run golangci-lint only. Lighter incremental re-check after fixing a lint issue. |
-| `run_vuln_check` | Run govulncheck only. Lighter incremental re-check after upgrading a dependency. |
-| `run_nil_check` | Run nilaway only. Lighter incremental re-check after fixing a nil panic. |
-| `install_tools` | Pre-install all three tools with pinned/latest versions. **Call this once at session start.** |
-
----
-
-## Quick start
-
-### With Claude Code
-
-```bash
-claude mcp add go-quality -- go run github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@latest
-```
-
-Then call `install_tools` once at session start. After that, `run_code_checks` for every Go project.
-
-### With any MCP client
-
-```json
-{
-  "mcpServers": {
-    "go-quality": {
-      "command": "mcp-server-go-quality",
-      "args": [],
-      "transport": "stdio"
-    }
-  }
-}
-```
-
-Install the binary with `go install github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@latest`.
-
----
-
-## Recommended agent workflow
-
-1. **Install tools** — call `install_tools` at session start. Fast no-op if binaries are already at the correct version; only installs missing or outdated tools.
-2. **Run checks** — call `run_code_checks` with `project_path` set to the project root (or any subdirectory — the server walks up to find `go.work` or `go.mod`).
-3. **Process diagnostics** — iterate the `Diagnostic[]` array, filter by `severity` (`"error"` > `"warning"` > `""`), navigate to `file:line:column`, and consult `native` for full raw output (suggested fixes in golangci-lint, CVE IDs and call traces in govulncheck, nil-propagation chains in nilaway).
-
-Agent developers should load **[docs/agents/AGENTS.md](docs/agents/AGENTS.md)** — a compact guide covering the tool contract and processing loop. For error tables, remediation examples, and troubleshooting, see the companion **[reference.md](docs/agents/reference.md)**.
-
----
-
-## Configuration (`.go-quality.yaml`)
-
-Place at the project root (or wherever the MCP client launches the server). All fields optional — defaults are shown below:
-
-```yaml
-# Per-tool timeout budget. Each of the 3 tools gets this independently.
-# Default: 5m. Increase for large monorepos or first-run vuln DB downloads.
-timeout: 5m
-
-tools:
-  golangci-lint:
-    version: v2.11.4       # Pinned default. Override with caution — JSON schema changes.
-    extra_args: []         # Appended after required flags. Reserved flags rejected.
-  govulncheck:
-    version: latest
-    extra_args: []
-  nilaway:
-    version: latest
-    extra_args: ["--exclude-pkgs=github.com/myorg/vendor"]
-```
-
-Precedence: CLI `--config` flag > `.go-quality.yaml` in server working directory > compiled-in defaults.
+| `run_lint` | Run golangci-lint only. |
+| `run_vuln_check` | Run govulncheck only. |
+| `run_nil_check` | Run nilaway only. |
+| `install_tools` | Pre-install all three tools with pinned/latest versions. Call this at session start. |
 
 ---
 
@@ -136,7 +65,7 @@ Every tool returns a flat array of this shape, sorted by `file` then `line`:
     "severity": "warning",
     "message": "cognitive complexity 18 is high (> 15)",
     "error": "",
-    "native": {"FromLinter": "gocognit", "Text": "...", "SourceLines": ["..."], "SuggestedFixes": [...]}
+    "native": {"FromLinter": "gocognit", "Text": "...", "SuggestedFixes": [...]}
   }
 ]
 ```
@@ -144,27 +73,104 @@ Every tool returns a flat array of this shape, sorted by `file` then `line`:
 | Field | Notes |
 |---|---|
 | `severity` | Absent (not `""`) for govulncheck and nilaway — they have no severity concept |
-| `native` | `null` for error diagnostics; full raw tool output otherwise |
-| `error` | Non-empty on tool failure or panic. Check this first before reading `file`/`line` |
+| `native` | Full raw tool output. `null` for error diagnostics that carry no raw context. Govulncheck parse errors carry raw error strings as a JSON array. |
+| `error` | Non-empty on tool failure or panic. **Check this first** before reading `file`/`line`. |
+
+---
+
+## Installation
+
+### For AI agents (Claude Code, etc.)
+
+```bash
+claude mcp add go-quality -- go run github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@latest
+```
+
+For other MCP clients, add to your config:
+
+```json
+{
+  "mcpServers": {
+    "go-quality": {
+      "command": "mcp-server-go-quality",
+      "args": []
+    }
+  }
+}
+```
+
+### For humans (local install)
+
+```bash
+go install github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@latest
+```
+
+Then run it directly on a Go project:
+
+```bash
+cd ~/my-go-project
+mcp-server-go-quality
+# Or specify a project path and config:
+mcp-server-go-quality --config ./my-config.yaml
+```
+
+The server starts in stdio mode — connect any MCP client or test it interactively by piping JSON-RPC. Tools auto-install into `$GOBIN` on first use.
+
+**Prerequisites:** Go 1.22+ on `PATH`.
+
+---
+
+## Agent workflow
+
+1. **Install tools** — call `install_tools` at session start. Returns `installed`, `already_present`, and `failed` lists. A fast no-op if binaries are at the correct version.
+2. **Run checks** — call `run_code_checks` with `project_path` set to the project root (or any subdirectory — the server walks up to `go.work` or `go.mod`).
+3. **Process diagnostics** — check `error` first (non-empty = tool failure), then navigate to `file:line:column`. The `native` field carries full raw output for remediation.
+
+Full contract and processing loop: **[docs/agents/AGENTS.md](docs/agents/AGENTS.md)**  
+Error tables, remediation, and troubleshooting: **[docs/agents/reference.md](docs/agents/reference.md)**
+
+---
+
+## Configuration (`.go-quality.yaml`)
+
+Place at the project root. All fields optional.
+
+```yaml
+timeout: 5m          # per-tool deadline; increase for big monorepos or first vuln DB download
+
+tools:
+  golangci-lint:
+    version: v2.11.4
+    extra_args: []
+  govulncheck:
+    version: latest
+    extra_args: []
+  nilaway:
+    version: latest
+    extra_args: ["--exclude-pkgs=github.com/myorg/vendor"]
+```
+
+Precedence: `--config` flag > `.go-quality.yaml` at server CWD > compiled-in defaults.
 
 ---
 
 ## Go workspace support
 
-Supports single-module `go.mod` projects and `go.work` multi-module workspaces. Pass any subdirectory as `project_path` — the server walks up to find `go.work` first, then `go.mod`. All tools run from the discovered root with `./...` patterns. Nilaway automatically collects module paths from `use` directives and passes them via `-include-pkgs`.
-
----
-
-## Requirements
-
-- Go **1.22+** on `PATH`
-- The three quality tools are **auto-installed** into `$GOBIN` (or `$GOPATH/bin`, or `$HOME/go/bin` — resolved at startup). No manual `go install` needed.
+Supports single-module `go.mod` and `go.work` multi-module workspaces. Pass any subdirectory as `project_path` — the server walks up to find `go.work` first, then `go.mod`. Nilaway automatically collects module paths from `use` directives and passes them via `-include-pkgs`.
 
 ---
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md). This project enforces TDD (red-green-refactor); nearly every source file has a companion `_test.go` file in the same package (the `Checker` interface in `checker.go` is exercised indirectly through handler tests). Integration tests run against [`testdata/sample_project/`](testdata/sample_project/) — a small Go module with intentional issues for all three tools. Run `make test` for unit tests and `make test-all` for the full suite including integration.
+TDD enforced — nearly every source file has a companion `_test.go` file. Integration tests run against [`testdata/sample_project/`](testdata/sample_project/), a small Go module with intentional issues for all three tools.
+
+```bash
+make test       # unit tests (fast)
+make test-all   # full suite including integration
+make lint       # golangci-lint
+make fmt        # gofumpt + goimports
+make build      # compile the binary
+```
 
 ---
 

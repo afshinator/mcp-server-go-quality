@@ -16,7 +16,7 @@ Diagnostic {
   severity: "error" | "warning" | ""   // "" for govulncheck/nilaway; absent when empty
   message:  string          // human-readable summary
   error:    string          // "" on success; non-empty on tool failure
-  native:   object          // full raw tool output; null for error diagnostics
+  native:   object          // full raw tool output; also populated for govulncheck parse error diagnostics as a JSON array of error strings
 }
 ```
 
@@ -35,7 +35,7 @@ still present in the same response.
 | `"timed out after 5m0s"` | Tool exceeded per-tool deadline | Increase `timeout` in `.go-quality.yaml` |
 | `"cancelled"` | Client disconnected while tool was running | Safe to retry |
 | `"unexpected output format from <tool>..."` | Tool version mismatch with server's parser | Run `install_tools` to reinstall the pinned version |
-| `"N line(s) failed to parse: ..."` | govulncheck output had malformed lines | Likely a govulncheck version issue; run `install_tools` |
+| `"failed to parse govulncheck output: ..."` | govulncheck output had malformed lines | Likely a govulncheck version issue; run `install_tools`. Inspect `native` for the raw parse error. |
 
 ### Fatal errors (JSON-RPC error, no Diagnostic array)
 
