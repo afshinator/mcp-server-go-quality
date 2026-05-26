@@ -1,0 +1,8 @@
+{
+  "name": "mcp-server-go-quality",
+  "version": "0.1.0",
+  "description": "Go code quality MCP server — golangci-lint, govulncheck, nilaway",
+  "keywords": ["mcp", "mcp-server", "go", "code-quality", "linting", "security"],
+  "repository": "github:afshinator/mcp-server-go-quality",
+  "license": "MIT"
+}

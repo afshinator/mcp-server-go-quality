@@ -1,0 +1,15 @@
+name: mcp-server-go-quality
+description: Go code quality MCP server — golangci-lint, govulncheck, and nilaway with unified Diagnostic[] output.
+command: go run github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@latest
+homepage: https://github.com/afshinator/mcp-server-go-quality
+author: afshinator
+icon: assets/logo.png
+categories:
+  - code-quality
+  - security
+  - developer-tools
+tags:
+  - go
+  - golang
+  - linting
+  - vulnerability
