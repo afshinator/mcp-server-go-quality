@@ -2,7 +2,7 @@ APP_NAME              := mcp-server-go-quality
 CMD_DIR               := ./cmd/$(APP_NAME)
 GOLANGCI_LINT_VERSION := v2.12.0
 
-.PHONY: build install test test-all lint audit nilcheck vet clean fmt run check setup-dev
+.PHONY: build install test test-all lint audit nilcheck vet clean fmt fmt-check run check setup-dev
 
 build:
 	go build -o bin/$(APP_NAME) $(CMD_DIR)
@@ -34,6 +34,11 @@ clean:
 fmt:
 	gofumpt -w ./
 	goimports -w ./
+
+fmt-check:
+	@gofumpt -d . | grep -q . && echo "ERROR: gofumpt found formatting issues. Run 'make fmt'." && exit 1 || true
+	@goimports -l . | grep -q . && echo "ERROR: goimports found import issues. Run 'make fmt'." && exit 1 || true
+	@echo "Formatting OK."
 
 run:
 	go run $(CMD_DIR)
