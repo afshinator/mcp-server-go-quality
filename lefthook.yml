@@ -10,3 +10,10 @@ pre-commit:
     golangci-lint:
       glob: "*.go"
       run: golangci-lint run --new-from-rev=HEAD~1 ./...
+
+pre-push:
+  commands:
+    lint-full:
+      run: golangci-lint run ./...
+    test-short:
+      run: go test -short -race ./...
