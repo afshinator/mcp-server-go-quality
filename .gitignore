@@ -32,7 +32,8 @@ Thumbs.db
 .superpowers/
 
 # Command Code local state
-.commandcode/
+.commandcode/*
+.mcp*
 
 # Environment
 .env
