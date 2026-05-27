@@ -6,7 +6,10 @@
 git clone https://github.com/afshinator/mcp-server-go-quality.git
 cd mcp-server-go-quality
 go mod download
+make setup-dev
 ```
+
+`make setup-dev` installs golangci-lint (pinned to the same version CI uses), gofumpt, goimports, and lefthook, then wires up the pre-commit and pre-push git hooks. Run once after cloning. The pre-commit hook formats staged files and runs incremental lint; the pre-push hook runs a full lint pass and short tests before anything reaches GitHub.
 
 ## Testing
 
@@ -18,11 +21,12 @@ make test-all   # full suite including integration
 ## Code quality before submitting
 
 ```bash
-make lint       # golangci-lint
-make vet        # go vet
-make fmt        # gofumpt + goimports
-make build      # verify clean build
+make check
 ```
+
+Runs gofumpt, go vet, golangci-lint, and go test in sequence. If `fmt` reformats any files, review with `git diff` and stage them before committing.
+
+Use `make fmt-check` to verify formatting without modifying files. Note: CI checks only `gofumpt`; `make fmt-check` also checks `goimports`, so it is stricter.
 
 ## TDD
 
@@ -35,7 +39,7 @@ Package structure, design decisions, and implementation history are in `docs/sup
 ## Pull request checklist
 
 - [ ] Star the repo please
-- [ ] Tests pass: `make test && make test-all`
-- [ ] Lint clean: `make lint`
-- [ ] Formatting clean: `gofumpt -d .` shows no diffs
+- [ ] `make check` passes locally
+- [ ] `make test-all` passes (full suite including integration tests)
+- [ ] Formatting clean: `make fmt-check` shows no issues
 - [ ] Relevant documentation updated

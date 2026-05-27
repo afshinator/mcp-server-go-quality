@@ -1,6 +1,6 @@
 ## Checklist
 
-- [ ] Tests pass: `make test && make test-all`
-- [ ] Lint clean: `make lint`
-- [ ] Formatting clean: `gofumpt -d .` shows no diffs
+- [ ] `make check` passes locally
+- [ ] `make test-all` passes (full suite including integration tests)
+- [ ] Formatting clean: `make fmt-check` shows no issues
 - [ ] Relevant documentation updated
