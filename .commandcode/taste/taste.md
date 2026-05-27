@@ -15,5 +15,6 @@
 
 # workflow
 - Never guess or assume factual details — always check git log, file history, or other authoritative sources before asserting anything. Confidence: 0.85
+- Don't assume a tool or path is unavailable without trying it first — attempt the call before reporting inability. Confidence: 0.75
 
 

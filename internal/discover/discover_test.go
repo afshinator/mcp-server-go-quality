@@ -346,7 +346,7 @@ func TestEnsureInstalledContextCancellation(t *testing.T) {
 	done1 := make(chan struct{})
 	go func() {
 		defer close(done1)
-		EnsureInstalled(context.Background(), c, "/fake/bin", "testtool",
+		_, _ = EnsureInstalled(context.Background(), c, "/fake/bin", "testtool",
 			"some/module", "some/module/cmd/testtool", "v1.0.0")
 	}()
 

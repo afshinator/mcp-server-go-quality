@@ -41,7 +41,11 @@ func main() {
 		stdio,
 		client.WithClientCapabilities(mcp.ClientCapabilities{}),
 	)
-	defer c.Close()
+	defer func() {
+		if err := c.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to close client: %v\n", err)
+		}
+	}()
 
 	if err := c.Start(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to start client: %v\n", err)
