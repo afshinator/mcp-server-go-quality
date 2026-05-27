@@ -36,8 +36,8 @@ fmt:
 	goimports -w ./
 
 fmt-check:
-	@gofumpt -d . | grep -q . && echo "ERROR: gofumpt found formatting issues. Run 'make fmt'." && exit 1 || true
-	@goimports -l . | grep -q . && echo "ERROR: goimports found import issues. Run 'make fmt'." && exit 1 || true
+	@out=$$(gofumpt -d .); if [ -n "$$out" ]; then printf '%s\n' "$$out"; echo "ERROR: gofumpt found formatting issues. Run 'make fmt'."; exit 1; fi
+	@out=$$(goimports -l .); if [ -n "$$out" ]; then printf '%s\n' "$$out"; echo "ERROR: goimports found import issues. Run 'make fmt'."; exit 1; fi
 	@echo "Formatting OK."
 
 run:

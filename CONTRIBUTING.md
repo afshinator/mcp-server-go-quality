@@ -26,7 +26,7 @@ make check
 
 Runs gofumpt, go vet, golangci-lint, and go test in sequence. If `fmt` reformats any files, review with `git diff` and stage them before committing.
 
-Use `make fmt-check` to verify formatting without modifying files (mirrors what CI enforces).
+Use `make fmt-check` to verify formatting without modifying files. Note: CI checks only `gofumpt`; `make fmt-check` also checks `goimports`, so it is stricter.
 
 ## TDD
 
@@ -41,4 +41,5 @@ Package structure, design decisions, and implementation history are in `docs/sup
 - [ ] Star the repo please
 - [ ] `make check` passes locally
 - [ ] `make test-all` passes (full suite including integration tests)
+- [ ] Formatting clean: `make fmt-check` shows no issues
 - [ ] Relevant documentation updated
