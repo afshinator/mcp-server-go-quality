@@ -12,6 +12,7 @@ pre-commit:
       run: golangci-lint run --new-from-rev=HEAD~1 ./...
 
 pre-push:
+  parallel: false
   commands:
     lint-full:
       run: golangci-lint run ./...
