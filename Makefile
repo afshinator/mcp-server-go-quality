@@ -50,6 +50,8 @@ setup-dev:
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	go install mvdan.cc/gofumpt@latest
 	go install golang.org/x/tools/cmd/goimports@latest
+	go install golang.org/x/vuln/cmd/govulncheck@latest
+	go install go.uber.org/nilaway/cmd/nilaway@latest
 	go install github.com/evilmartians/lefthook@latest
 	lefthook install
 	@echo "Dev environment ready. golangci-lint $(GOLANGCI_LINT_VERSION) installed to match CI."

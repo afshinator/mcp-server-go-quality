@@ -35,6 +35,9 @@ Thumbs.db
 .commandcode/*
 .mcp*
 
+# pi-lens local agent artifacts
+.pi-lens/
+
 # Environment
 .env
 .env.local
