@@ -3,8 +3,8 @@
 ## Remove before public release
 
 - [x] `.mcp.json` — personal MCP config. Not for public repo. (gitignored/culled)
-- [ ] `CLAUDE.md` — Claude Code agent instructions with private paths.
-- [ ] `.commandcode/` — local Command Code state.
+- [x] `CLAUDE.md` — Claude Code agent instructions with private paths. (deleted; info now in `/vault/Knowledge/mcp-server-go-quality.md`)
+- [x] `.commandcode/` — local Command Code state. (gitignored; removed from tracking)
 - [x] `.superpowers/` — brainstorm session state, pids, logs. (gitignored/culled)
 - [x] `docs/superpowers/specs/spec-v3-review1.md` — outdated spec review commentary. (deleted)
 - [x] `docs/superpowers/plans/install-lock-double-check-sequence.md` — implementation scratch notes. (deleted)
@@ -28,6 +28,7 @@ These stay in the repo:
 - [x] `/mcp-server-go-quality` (root binary)
 - [x] `coverage.out` and `*.test`
 - [x] `smithery.yaml` — not applicable for stdio Go MCP server (deleted)
+- [x] `.pi-lens/` — Pi Lens agent state (gitignored; removed from tracking)
 
 ## P2 — remaining
 

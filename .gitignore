@@ -31,8 +31,10 @@ Thumbs.db
 # Brainstorm / visual companion artifacts
 .superpowers/
 
-# Command Code local state
+# Agent local state
 .commandcode/*
+.claude/*
+.pi-lens/*
 .mcp*
 
 # Environment
