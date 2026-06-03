@@ -14,6 +14,12 @@
 
 ---
 
+## Demo
+
+![demo](demo.gif)
+
+---
+
 ## What it does
 
 Wraps three Go code quality tools into a single MCP interface. Designed for **AI coding agents** (Claude Code, Codex, OpenCode) but also useful for CI pipelines and local development. Call one tool (`run_code_checks`) and get a flat, sorted `Diagnostic[]` array — all three checkers run in parallel under independent timeouts. Tools auto-install on first use.

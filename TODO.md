@@ -27,10 +27,11 @@ These stay in the repo:
 - [x] `.superpowers/`
 - [x] `/mcp-server-go-quality` (root binary)
 - [x] `coverage.out` and `*.test`
+- [x] `smithery.yaml` — not applicable for stdio Go MCP server (deleted)
 
 ## P2 — remaining
 
-- [ ] Terminal demo GIF
+- [x] Terminal demo GIF (done — `demo.gif` in repo root, linked in README)
 
 - [ ] Pre-flight CI sanity script (`scripts/check-ci-config.sh`)
 
