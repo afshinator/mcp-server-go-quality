@@ -61,7 +61,7 @@ go run ./cmd/mcp-server-go-quality/
 
 All 15 TDD tasks complete (see `docs/superpowers/plans/`).
 
-All 10 adversarial review findings fixed (see `docs/superpowers/plans/2026-05-26-adversarial-review-fixes.md`).
+All 10 adversarial review findings fixed and merged.
 
 ---
 

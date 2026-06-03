@@ -2,14 +2,14 @@
 
 ## Remove before public release
 
-- [ ] `.mcp.json` — personal MCP config. Not for public repo.
+- [x] `.mcp.json` — personal MCP config. Not for public repo. (gitignored/culled)
 - [ ] `CLAUDE.md` — Claude Code agent instructions with private paths.
 - [ ] `.commandcode/` — local Command Code state.
-- [ ] `.superpowers/` — brainstorm session state, pids, logs.
-- [ ] `docs/superpowers/specs/spec-v3-review1.md` — outdated spec review commentary.
-- [ ] `docs/superpowers/plans/install-lock-double-check-sequence.md` — implementation scratch notes.
-- [ ] `bin/mcp-server-go-quality` — build artifact.
-- [ ] `coverage.out` — build artifact.
+- [x] `.superpowers/` — brainstorm session state, pids, logs. (gitignored/culled)
+- [x] `docs/superpowers/specs/spec-v3-review1.md` — outdated spec review commentary. (deleted)
+- [x] `docs/superpowers/plans/install-lock-double-check-sequence.md` — implementation scratch notes. (deleted)
+- [x] `bin/mcp-server-go-quality` — build artifact. (gitignored/culled)
+- [x] `coverage.out` — build artifact. (gitignored/culled)
 
 ## KEEP — these are public-facing
 
@@ -19,7 +19,6 @@ These stay in the repo:
 - [x] `docs/agents/reference.md` — error tables, remediation, troubleshooting.
 - [x] `docs/superpowers/specs/spec-v3.md` — design spec. Useful context for contributors.
 - [x] `docs/superpowers/plans/01-setup-and-types.md` through `05-orchestration-server.md` — implementation plans.
-- [x] `docs/superpowers/plans/2026-05-26-adversarial-review-fixes.md` — review fixes log.
 - [x] `docs/superpowers/plans/2026-05-26-repo-polish-and-discoverability.md` — polish plan.
 
 ## `.gitignore` already covers
