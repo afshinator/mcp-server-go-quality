@@ -1,9 +1,31 @@
 {
   "name": "mcp-server-go-quality",
-  "description": "One MCP server for Go code quality — golangci-lint, govulncheck, and nilaway with unified Diagnostic[] output, parallel execution, and auto-install.",
+  "description": "Runs golangci-lint, govulncheck, and nilaway against any Go project and returns a single sorted Diagnostic[] array with file:line:column. Use when an AI agent needs lint violations, CVE exposure, or nil-panic paths from a Go codebase in one call — tools auto-install on first use.",
   "keywords": ["go", "golang", "linting", "security", "vulnerability", "code-quality", "mcp", "mcp-server"],
   "license": "MIT",
   "author": "afshinator",
   "homepage": "https://github.com/afshinator/mcp-server-go-quality",
-  "repository": "https://github.com/afshinator/mcp-server-go-quality"
+  "repository": "https://github.com/afshinator/mcp-server-go-quality",
+  "tools": [
+    {
+      "name": "run_code_checks",
+      "description": "Run all three Go quality checkers (golangci-lint, govulncheck, nilaway) in parallel. Returns unified Diagnostic[] sorted by file:line. Use when you want a full quality sweep in one call."
+    },
+    {
+      "name": "run_lint",
+      "description": "Run golangci-lint only. Returns lint violations, complexity, and security pattern issues. Use when you need fast feedback on style or lint errors."
+    },
+    {
+      "name": "run_vuln_check",
+      "description": "Run govulncheck only. Returns known CVEs reachable from your code via call-graph analysis. Use when auditing dependencies for security issues."
+    },
+    {
+      "name": "run_nil_check",
+      "description": "Run nilaway only. Returns potential nil-panic paths detected via static analysis. Use when diagnosing nil-dereference bugs or hardening new code."
+    },
+    {
+      "name": "install_tools",
+      "description": "Pre-install golangci-lint, govulncheck, and nilaway with pinned versions. Use once at session start to avoid first-run latency."
+    }
+  ]
 }

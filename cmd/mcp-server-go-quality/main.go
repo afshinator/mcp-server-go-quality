@@ -85,33 +85,53 @@ func main() {
 func registerTools(s *mcpserver.MCPServer, cfg config.Config, binDir string, versionCache *discover.Cache) {
 	s.AddTool(mcp.NewTool(
 		"run_code_checks",
-		mcp.WithDescription("Run Go code quality checks in parallel. Returns unified diagnostics with file, line, message, and native tool output."),
-		mcp.WithString("project_path", mcp.Description("Path to Go project root (default: server CWD)")),
-		mcp.WithArray("tools", mcp.Description("Subset of checkers to run. Valid: golangci-lint, govulncheck, nilaway. Omit for all three.")),
+		mcp.WithDescription("Run golangci-lint, govulncheck, and nilaway in parallel against a Go project. Returns unified Diagnostic[] sorted by file:line:column. Use when you want a full quality sweep in one call."),
+		mcp.WithReadOnlyHintAnnotation(true),
+		mcp.WithDestructiveHintAnnotation(false),
+		mcp.WithIdempotentHintAnnotation(true),
+		mcp.WithOpenWorldHintAnnotation(true),
+		mcp.WithString("project_path", mcp.Description("Absolute or relative path to the Go project root. Omit to use the server's working directory.")),
+		mcp.WithArray("tools", mcp.Description("Subset of checkers to run. Valid values: golangci-lint, govulncheck, nilaway. Omit to run all three.")),
 	), makeRunAllHandler(cfg, binDir, versionCache))
 
 	s.AddTool(mcp.NewTool(
 		"run_lint",
-		mcp.WithDescription("Run golangci-lint only. Returns lint violations, complexity, and security pattern issues."),
-		mcp.WithString("project_path", mcp.Description("Path to Go project root (default: server CWD)")),
+		mcp.WithDescription("Run golangci-lint against a Go project. Returns lint violations, complexity issues, and security patterns as Diagnostic[]. Use when you need fast lint feedback without running the full checker suite."),
+		mcp.WithReadOnlyHintAnnotation(true),
+		mcp.WithDestructiveHintAnnotation(false),
+		mcp.WithIdempotentHintAnnotation(true),
+		mcp.WithOpenWorldHintAnnotation(true),
+		mcp.WithString("project_path", mcp.Description("Absolute or relative path to the Go project root. Omit to use the server's working directory.")),
 	), makeSingleHandler(toolname.GolangciLint, cfg, binDir, versionCache))
 
 	s.AddTool(mcp.NewTool(
 		"run_vuln_check",
-		mcp.WithDescription("Run govulncheck only. Returns known CVEs in the dependency graph via call-graph analysis."),
-		mcp.WithString("project_path", mcp.Description("Path to Go project root (default: server CWD)")),
+		mcp.WithDescription("Run govulncheck against a Go project. Returns known CVEs reachable from your code via call-graph analysis as Diagnostic[]. Use when auditing dependencies for security vulnerabilities."),
+		mcp.WithReadOnlyHintAnnotation(true),
+		mcp.WithDestructiveHintAnnotation(false),
+		mcp.WithIdempotentHintAnnotation(true),
+		mcp.WithOpenWorldHintAnnotation(true),
+		mcp.WithString("project_path", mcp.Description("Absolute or relative path to the Go project root. Omit to use the server's working directory.")),
 	), makeSingleHandler(toolname.Govulncheck, cfg, binDir, versionCache))
 
 	s.AddTool(mcp.NewTool(
 		"run_nil_check",
-		mcp.WithDescription("Run nilaway only. Returns potential nil panics detected via static analysis."),
-		mcp.WithString("project_path", mcp.Description("Path to Go project root (default: server CWD)")),
+		mcp.WithDescription("Run nilaway against a Go project. Returns potential nil-panic paths detected via inter-procedural static analysis as Diagnostic[]. Use when hardening new code or diagnosing nil-dereference bugs."),
+		mcp.WithReadOnlyHintAnnotation(true),
+		mcp.WithDestructiveHintAnnotation(false),
+		mcp.WithIdempotentHintAnnotation(true),
+		mcp.WithOpenWorldHintAnnotation(true),
+		mcp.WithString("project_path", mcp.Description("Absolute or relative path to the Go project root. Omit to use the server's working directory.")),
 	), makeSingleHandler(toolname.Nilaway, cfg, binDir, versionCache))
 
 	s.AddTool(mcp.NewTool(
 		"install_tools",
-		mcp.WithDescription("Pre-install required Go quality tools with pinned versions. Call at session start."),
-		mcp.WithArray("tools", mcp.Description("Subset of tools to install. Valid: golangci-lint, govulncheck, nilaway. Omit for all three.")),
+		mcp.WithDescription("Pre-install golangci-lint, govulncheck, and nilaway with pinned versions into GOBIN. Use once at session start to eliminate first-run latency on quality checks."),
+		mcp.WithReadOnlyHintAnnotation(false),
+		mcp.WithDestructiveHintAnnotation(false),
+		mcp.WithIdempotentHintAnnotation(true),
+		mcp.WithOpenWorldHintAnnotation(true),
+		mcp.WithArray("tools", mcp.Description("Subset of tools to install. Valid values: golangci-lint, govulncheck, nilaway. Omit to install all three.")),
 	), makeInstallHandler(cfg, binDir, versionCache))
 }
 
