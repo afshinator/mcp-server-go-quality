@@ -20,7 +20,7 @@ func TestResolveGoBinDir(t *testing.T) {
 }
 
 func TestParseGoVersionOutput(t *testing.T) {
-	output := []byte(`/home/user/go/bin/golangci-lint: devel go1.25.9
+	output := []byte(`/home/user/go/bin/golangci-lint: devel go1.26.4
 	path	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 	mod	github.com/golangci/golangci-lint/v2	v2.11.4	h1:abc123=
 	dep	github.com/BurntSushi/toml	v1.4.0	h1:def456=
@@ -34,7 +34,7 @@ func TestParseGoVersionOutput(t *testing.T) {
 }
 
 func TestParseGoVersionOutputNilaway(t *testing.T) {
-	output := []byte(`/home/user/go/bin/nilaway: devel go1.25.9
+	output := []byte(`/home/user/go/bin/nilaway: devel go1.26.4
 	path	go.uber.org/nilaway/cmd/nilaway
 	mod	go.uber.org/nilaway	v0.0.0-20260515015210-fd187751154f	h1:abc=
 `)
@@ -45,7 +45,7 @@ func TestParseGoVersionOutputNilaway(t *testing.T) {
 }
 
 func TestParseGoVersionOutputGovulncheck(t *testing.T) {
-	output := []byte(`/home/user/go/bin/govulncheck: devel go1.25.9
+	output := []byte(`/home/user/go/bin/govulncheck: devel go1.26.4
 	path	golang.org/x/vuln/cmd/govulncheck
 	mod	golang.org/x/vuln	v1.3.0	h1:abc=
 `)
@@ -56,7 +56,7 @@ func TestParseGoVersionOutputGovulncheck(t *testing.T) {
 }
 
 func TestParseGoVersionUnknown(t *testing.T) {
-	output := []byte(`/home/user/go/bin/custom-tool: devel go1.25.9
+	output := []byte(`/home/user/go/bin/custom-tool: devel go1.26.4
 	path	some/custom/tool
 `)
 	version := ParseModuleVersion(output, "some/custom/tool")

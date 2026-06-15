@@ -9,7 +9,7 @@ This file IS committed to the project git repo.
 
 **Name:** mcp-server-go-quality
 **Purpose:** MCP server wrapping Go code quality tools (golangci-lint, govulncheck, nilaway) for AI agent consumption
-**Stack:** Go 1.25
+**Stack:** Go 1.26
 **Status:** Implemented and tested. All 15 plan tasks complete. All 10 adversarial review findings fixed.
 
 ## Key Research

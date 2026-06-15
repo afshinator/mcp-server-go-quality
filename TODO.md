@@ -2,14 +2,20 @@
 
 ## Remove before public release
 
-- [ ] `.mcp.json` — personal MCP config. Not for public repo.
-- [ ] `CLAUDE.md` — Claude Code agent instructions with private paths.
-- [ ] `.commandcode/` — local Command Code state.
-- [ ] `.superpowers/` — brainstorm session state, pids, logs.
+- [ ] `CLAUDE.md` — Claude Code agent instructions with private vault paths.
+- [ ] `.commandcode/taste/taste.md` — `.commandcode/*` is gitignored but this file was committed before the pattern was added. Needs `git rm --cached`.
 - [ ] `docs/superpowers/specs/spec-v3-review1.md` — outdated spec review commentary.
 - [ ] `docs/superpowers/plans/install-lock-double-check-sequence.md` — implementation scratch notes.
-- [ ] `bin/mcp-server-go-quality` — build artifact.
-- [ ] `coverage.out` — build artifact.
+
+## Already handled — no action needed
+
+- [x] `.mcp.json` — personal MCP config. Never tracked, `.mcp*` pattern in `.gitignore`.
+- [x] `.superpowers/` — Already gitignored, no tracked files.
+- [x] `.commandcode/` (except taste.md) — Gitignored, only the single tracked file above remains.
+- [x] `.pi-lens/` — Added to `.gitignore` and removed from git tracking.
+- [x] `bin/mcp-server-go-quality` — Already in `.gitignore`.
+- [x] `coverage.out` and `*.test` — Already in `.gitignore`.
+- [x] `/mcp-server-go-quality` (root binary) — Already in `.gitignore`.
 
 ## KEEP — these are public-facing
 
@@ -21,19 +27,27 @@ These stay in the repo:
 - [x] `docs/superpowers/plans/01-setup-and-types.md` through `05-orchestration-server.md` — implementation plans.
 - [x] `docs/superpowers/plans/2026-05-26-adversarial-review-fixes.md` — review fixes log.
 - [x] `docs/superpowers/plans/2026-05-26-repo-polish-and-discoverability.md` — polish plan.
+- [x] `Makefile` — targets: `setup-dev`, `check`, `fmt-check`, plus standard build/test/lint.
 
-## `.gitignore` already covers
+## Done
 
-- [x] `.commandcode/`
-- [x] `.superpowers/`
-- [x] `/mcp-server-go-quality` (root binary)
-- [x] `coverage.out` and `*.test`
+- [x] **Branch protection on `main`** — now enabled (requires PR + passing status checks + blocks force pushes).
+- [x] **PR #2** (dependabot mcp-go v0.54.0→v0.54.1) — merged.
+- [x] **PR #3** (fix/ci-guardrails: pre-push hook, make targets, docs) — merged.
+- [x] **`make setup-dev`** — works. Installs gofumpt, goimports, golangci-lint v2 (pinned), govulncheck, nilaway, lefthook; wires pre-commit and pre-push hooks.
+- [x] **`make check`** — fmt → vet → lint → test, all passing.
+- [x] **`make fmt-check`** — non-destructive formatting verification (gofumpt + goimports).
+- [x] **Lefthook hooks** — pre-commit (gofumpt, go vet, incremental lint), pre-push (full lint + short tests).
+- [x] **golangci-lint** — bumped from v1 to v2.12.2 to match `.golangci.yml` config.
+- [x] **nilaway install path** — fixed from `github.com/uber-go/nilaway` to `go.uber.org/nilaway`.
 
 ## P2 — remaining
 
-- [ ] Terminal demo GIF
+- [ ] **Terminal demo GIF**
 
-- [ ] Pre-flight CI sanity script (`scripts/check-ci-config.sh`)
+  See instructions below.
+
+- [ ] **Pre-flight CI sanity script (`scripts/check-ci-config.sh`)**
 
   Validates CI workflow configs against the project's declared constraints
   so version mismatches get caught before push, not after.

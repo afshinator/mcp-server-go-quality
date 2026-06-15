@@ -14,8 +14,8 @@ import (
 func TestParseGovulncheckOutputFindsVulnerabilities(t *testing.T) {
 	input := `{"config":{"protocol_version":"v1.0.0"}}
 {"osv":{"id":"GO-2026-4918","summary":"Infinite loop in HTTP/2 transport","aliases":["CVE-2026-33814"]}}
-{"finding":{"osv":"GO-2026-4918","fixed_version":"v1.25.10","trace":[{"module":"github.com/myorg/myapp","version":"v1.0.0","package":"github.com/myorg/myapp/internal/httpclient","function":"Get","position":{"filename":"internal/httpclient/client.go","line":78,"column":25}},{"module":"stdlib","version":"v1.25.9","package":"net/http","function":"Do","position":{"filename":"src/net/http/client.go","line":586,"column":18}}]}}
-{"finding":{"osv":"GO-2026-4971","fixed_version":"v1.25.10","trace":[{"module":"stdlib","version":"v1.25.9","package":"net"}]}}
+{"finding":{"osv":"GO-2026-4918","fixed_version":"v1.26.4","trace":[{"module":"github.com/myorg/myapp","version":"v1.0.0","package":"github.com/myorg/myapp/internal/httpclient","function":"Get","position":{"filename":"internal/httpclient/client.go","line":78,"column":25}},{"module":"stdlib","version":"v1.26.3","package":"net/http","function":"Do","position":{"filename":"src/net/http/client.go","line":586,"column":18}}]}}
+{"finding":{"osv":"GO-2026-4971","fixed_version":"v1.26.4","trace":[{"module":"stdlib","version":"v1.26.3","package":"net"}]}}
 {"progress":{"message":"done"}}
 `
 	projectRoot := "/project/myapp"
@@ -67,7 +67,7 @@ func TestParseGovulncheckOutputFindsVulnerabilities(t *testing.T) {
 }
 
 func TestParseGovulncheckOutputMissingOSVMap(t *testing.T) {
-	input := `{"finding":{"osv":"UNKNOWN-ID","fixed_version":"v1.25.10","trace":[{"module":"github.com/myorg/myapp","version":"v1.0.0","package":"github.com/myorg/myapp/internal/httpclient","function":"Get","position":{"filename":"internal/httpclient/client.go","line":78,"column":25}}]}}
+	input := `{"finding":{"osv":"UNKNOWN-ID","fixed_version":"v1.26.4","trace":[{"module":"github.com/myorg/myapp","version":"v1.0.0","package":"github.com/myorg/myapp/internal/httpclient","function":"Get","position":{"filename":"internal/httpclient/client.go","line":78,"column":25}}]}}
 `
 	diags, err := parseGovulncheckOutput([]byte(input), "/project/myapp", []string{"github.com/myorg/myapp"})
 	if err != nil {
@@ -84,9 +84,9 @@ func TestParseGovulncheckOutputMissingOSVMap(t *testing.T) {
 func TestParseGovulncheckOutputNDJSONParseError(t *testing.T) {
 	input := `{"config":{"protocol_version":"v1.0.0"}}
 {"osv":{"id":"GO-2026-4918","summary":"Test vuln"}}
-{"finding":{"osv":"GO-2026-4918","fixed_version":"v1.25.10","trace":[{"module":"github.com/myorg/myapp","version":"v1.0.0","package":"github.com/myorg/myapp/internal/httpclient","function":"Get","position":{"filename":"internal/httpclient/client.go","line":78,"column":25}}]}}
+{"finding":{"osv":"GO-2026-4918","fixed_version":"v1.26.4","trace":[{"module":"github.com/myorg/myapp","version":"v1.0.0","package":"github.com/myorg/myapp/internal/httpclient","function":"Get","position":{"filename":"internal/httpclient/client.go","line":78,"column":25}}]}}
 {invalid json line here}
-{"finding":{"osv":"GO-2026-4999","fixed_version":"v1.25.10","trace":[{"module":"github.com/myorg/myapp","version":"v1.0.0","package":"net/http","function":"Do","position":{"filename":"src/net/http/client.go","line":586,"column":18}}]}}
+{"finding":{"osv":"GO-2026-4999","fixed_version":"v1.26.4","trace":[{"module":"github.com/myorg/myapp","version":"v1.0.0","package":"net/http","function":"Do","position":{"filename":"src/net/http/client.go","line":586,"column":18}}]}}
 `
 
 	diags, err := parseGovulncheckOutput([]byte(input), "/project/myapp", []string{"github.com/myorg/myapp"})
@@ -160,7 +160,7 @@ func TestChooseTraceEntryNoWorkspaceMatch(t *testing.T) {
 }
 
 func TestParseGovulncheckFindingBeforeOSV(t *testing.T) {
-	input := `{"finding":{"osv":"GO-2026-4918","fixed_version":"v1.25.10","trace":[{"module":"github.com/myorg/myapp","version":"v1.0.0","package":"github.com/myorg/myapp/internal/httpclient","function":"Get","position":{"filename":"internal/httpclient/client.go","line":78,"column":25}}]}}
+	input := `{"finding":{"osv":"GO-2026-4918","fixed_version":"v1.26.4","trace":[{"module":"github.com/myorg/myapp","version":"v1.0.0","package":"github.com/myorg/myapp/internal/httpclient","function":"Get","position":{"filename":"internal/httpclient/client.go","line":78,"column":25}}]}}
 {"osv":{"id":"GO-2026-4918","summary":"Infinite loop in HTTP/2 transport","aliases":["CVE-2026-33814"]}}
 `
 	diags, err := parseGovulncheckOutput([]byte(input), "/project/myapp", []string{"github.com/myorg/myapp"})
