@@ -22,8 +22,11 @@ For current state, use:
 
 ## Contents
 
-- `plans/` — dated implementation plans (`01`–`05`, plus the repo-polish plan).
-  Each was a TDD task list for a slice of the build.
 - `specs/spec-v3.md` — the original design spec. Its two headline claims
   (targets protocol `2025-03-26`, pin `v2.11.4`) are both obsolete.
 - `specs/adversarial-review-v3.md` — the review notes taken against that spec.
+
+The dated implementation plans that used to live in `plans/` were deleted: they
+narrated how the code was built, are fully superseded by the code itself, and
+are preserved in git history. Anything still unfinished in them was extracted
+into [`../../TODO.md`](../../TODO.md).
