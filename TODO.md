@@ -14,11 +14,20 @@ The live backlog. **This is the file to read to find out what is next.**
 
 ## Open
 
-### T1 — Ship the breaking output change before consumers adopt it
-The check tools now return `{"diagnostics": [...]}` instead of a top-level
-array. Any external consumer reading `@latest` still gets the old shape until a
-release goes out. Tag a release before promoting the new contract.
-*Context: `docs/mcp-spec-currency.md` → Breaking changes.*
+### T1 — Cut the first tagged release
+The repo has **no tags and nothing published to the module proxy**, so
+`go install ...@latest` currently resolves to a pseudo-version of `main` HEAD
+rather than a stable release. Two consequences:
+
+1. There is no stable version for consumers to pin, and the `goreleaser`
+   release workflow (`on: push: tags: v*`) has never fired.
+2. The breaking output change is already live for anyone installing `@latest`,
+   because `@latest` tracks HEAD. There is nothing to "ship first" — but there
+   is also no way for a consumer to stay on the old shape.
+
+A first release should bump `internal/version/version.go` (`Value` is still
+`v0.1.0`), turn the CHANGELOG's unreleased entry into a dated `0.2.0` (major
+bump per semver: the output contract changed), and tag `v0.2.0`.
 
 ### T2 — Decide the fate of the historical docs
 `docs/superpowers/**` and `docs/tools-research.md` are now banner-labelled as
