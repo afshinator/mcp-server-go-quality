@@ -22,14 +22,14 @@ func TestResolveGoBinDir(t *testing.T) {
 func TestParseGoVersionOutput(t *testing.T) {
 	output := []byte(`/home/user/go/bin/golangci-lint: devel go1.25.9
 	path	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
-	mod	github.com/golangci/golangci-lint/v2	v2.11.4	h1:abc123=
+	mod	github.com/golangci/golangci-lint/v2	v2.14.0	h1:abc123=
 	dep	github.com/BurntSushi/toml	v1.4.0	h1:def456=
 	build	-buildmode=exe
 	build	-compiler=gc
 `)
 	version := ParseModuleVersion(output, "github.com/golangci/golangci-lint/v2")
-	if version != "v2.11.4" {
-		t.Errorf("version = %q, want v2.11.4", version)
+	if version != "v2.14.0" {
+		t.Errorf("version = %q, want v2.14.0", version)
 	}
 }
 

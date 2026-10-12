@@ -25,7 +25,7 @@ h2{color:#e6edf3;font-size:28px;margin-bottom:4px}
 <body>
 
 <h2>mcp-server-go-quality — Architecture</h2>
-<p class="subtitle">Three-layer functional design with parallel tool execution — based on spec v1</p>
+<p class="subtitle">Three-layer functional design with parallel tool execution — historical design note, not current state</p>
 
 <div class="section">
   <h3>Client → Server Flow</h3>
@@ -49,7 +49,7 @@ h2{color:#e6edf3;font-size:28px;margin-bottom:4px}
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
         <div style="background:#0f3460;border-radius:8px;padding:10px;text-align:center">
           <div style="color:#e94560;font-weight:bold;font-size:14px">runLint()</div>
-          <div style="color:#a0aec0;font-size:11px;margin-top:4px">golangci-lint<br>--out-format=json</div>
+          <div style="color:#a0aec0;font-size:11px;margin-top:4px">golangci-lint<br>--output.json.path stdout</div>
           <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:3px;justify-content:center">
             <span style="background:#16213e;color:#7ec8e3;padding:1px 5px;border-radius:3px;font-size:10px">gocyclo</span>
             <span style="background:#16213e;color:#7ec8e3;padding:1px 5px;border-radius:3px;font-size:10px">gocognit</span>
@@ -133,7 +133,7 @@ h2{color:#e6edf3;font-size:28px;margin-bottom:4px}
     <div class="cons">
       <h4>Doesn't</h4>
       <ul>
-        <li>No caching between calls (YAGNI for now)</li>
+        <li>Version cache + resolved-"latest" cache per process (see internal/discover)</li>
         <li>No stager for slow tools (parallel covers it)</li>
         <li>No separate gocyclo / gocognit binaries</li>
         <li>No golangci-lint config duplication</li>
@@ -150,14 +150,18 @@ h2{color:#e6edf3;font-size:28px;margin-bottom:4px}
       cmd/mcp-server-go-quality/main.go<br>
       internal/<br>
       &nbsp;&nbsp;checkers/<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;checkers.go &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← Diagnostic type<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;checker.go &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← Checker interface<br>
       &nbsp;&nbsp;&nbsp;&nbsp;golangci_lint.go &nbsp;&nbsp;&nbsp;← exec + parse golangci-lint JSON<br>
       &nbsp;&nbsp;&nbsp;&nbsp;govulncheck.go &nbsp;&nbsp;&nbsp;&nbsp;← exec + parse NDJSON stream<br>
       &nbsp;&nbsp;&nbsp;&nbsp;nilaway.go &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← exec + parse nilaway JSON<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;orchestrate.go &nbsp;&nbsp;&nbsp;&nbsp;← RunAllChecks, pre-flight, parallel dispatch<br>
-      &nbsp;&nbsp;config/config.go &nbsp;&nbsp;&nbsp;← .go-quality.yaml loader<br>
-      &nbsp;&nbsp;discovery/tools.go &nbsp;← tool discovery, go install<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;orchestrator.go &nbsp;&nbsp;&nbsp;← RunAllChecks, parallel dispatch<br>
+      &nbsp;&nbsp;config/config.go &nbsp;&nbsp;&nbsp;← .go-quality.yaml loader + pinned versions<br>
+      &nbsp;&nbsp;diagnostic/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← Diagnostic type<br>
+      &nbsp;&nbsp;discover/discover.go ← tool discovery, go install, version cache<br>
+      &nbsp;&nbsp;pathutil/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← path normalisation<br>
+      &nbsp;&nbsp;root/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← go.work / go.mod root discovery<br>
       &nbsp;&nbsp;runner/runner.go &nbsp;&nbsp;&nbsp;← CommandRunner interface, ExecRunner<br>
+      &nbsp;&nbsp;toolname/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← tool name constants and validation<br>
       &nbsp;&nbsp;version/version.go &nbsp;← VCS metadata, --version flag<br>
       testdata/sample_project/ &nbsp;← intentional-issue Go project for integration tests
     </div>

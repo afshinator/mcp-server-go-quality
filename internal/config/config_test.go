@@ -3,6 +3,8 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 )
@@ -12,14 +14,34 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Timeout != 5*time.Minute {
 		t.Errorf("default timeout = %v, want 5m", cfg.Timeout)
 	}
-	if cfg.Tools["golangci-lint"].Version != "v2.11.4" {
-		t.Errorf("golangci-lint default version = %q, want v2.11.4", cfg.Tools["golangci-lint"].Version)
+	if cfg.Tools["golangci-lint"].Version != GolangciLintVersion {
+		t.Errorf("golangci-lint default version = %q, want %q", cfg.Tools["golangci-lint"].Version, GolangciLintVersion)
 	}
-	if cfg.Tools["govulncheck"].Version != "latest" {
-		t.Errorf("govulncheck default version = %q, want latest", cfg.Tools["govulncheck"].Version)
+	if cfg.Tools["govulncheck"].Version != GovulncheckVersion {
+		t.Errorf("govulncheck default version = %q, want %q", cfg.Tools["govulncheck"].Version, GovulncheckVersion)
 	}
-	if cfg.Tools["nilaway"].Version != "latest" {
-		t.Errorf("nilaway default version = %q, want latest", cfg.Tools["nilaway"].Version)
+	if cfg.Tools["nilaway"].Version != NilawayVersion {
+		t.Errorf("nilaway default version = %q, want %q", cfg.Tools["nilaway"].Version, NilawayVersion)
+	}
+}
+
+func TestDefaultVersionFallsBackToLatest(t *testing.T) {
+	if got := DefaultVersion("some-unknown-tool"); got != "latest" {
+		t.Errorf("DefaultVersion(unknown) = %q, want latest", got)
+	}
+	tools := map[string]string{
+		"golangci-lint": GolangciLintVersion,
+		"govulncheck":   GovulncheckVersion,
+		"nilaway":       NilawayVersion,
+	}
+	for name, want := range tools {
+		got := DefaultVersion(name)
+		if got != want {
+			t.Errorf("DefaultVersion(%q) = %q, want %q", name, got, want)
+		}
+		if got == "latest" {
+			t.Errorf("DefaultVersion(%q) is unpinned, want a concrete version", name)
+		}
 	}
 }
 
@@ -38,7 +60,7 @@ func TestLoadValidFile(t *testing.T) {
 timeout: 10m
 tools:
   golangci-lint:
-    version: v2.11.4
+    version: v2.14.0
     extra_args: ["--no-config"]
   govulncheck:
     version: latest
@@ -60,7 +82,7 @@ tools:
 	if cfg.Timeout != 10*time.Minute {
 		t.Errorf("timeout = %v, want 10m", cfg.Timeout)
 	}
-	if cfg.Tools["golangci-lint"].Version != "v2.11.4" {
+	if cfg.Tools["golangci-lint"].Version != "v2.14.0" {
 		t.Errorf("golangci-lint version = %q", cfg.Tools["golangci-lint"].Version)
 	}
 	if len(cfg.Tools["golangci-lint"].ExtraArgs) != 1 {
@@ -93,8 +115,8 @@ tools:
 	if cfg.Timeout != 3*time.Minute {
 		t.Errorf("timeout = %v, want 3m", cfg.Timeout)
 	}
-	if cfg.Tools["golangci-lint"].Version != "v2.11.4" {
-		t.Errorf("golangci-lint version should default to v2.11.4 when omitted, got %q", cfg.Tools["golangci-lint"].Version)
+	if cfg.Tools["golangci-lint"].Version != GolangciLintVersion {
+		t.Errorf("golangci-lint version should default to %s when omitted, got %q", GolangciLintVersion, cfg.Tools["golangci-lint"].Version)
 	}
 	if len(cfg.Tools["golangci-lint"].ExtraArgs) != 1 || cfg.Tools["golangci-lint"].ExtraArgs[0] != "--disable-all" {
 		t.Errorf("golangci-lint extra_args = %v", cfg.Tools["golangci-lint"].ExtraArgs)
@@ -102,8 +124,8 @@ tools:
 	if cfg.Tools["govulncheck"].Version != "v1.2.0" {
 		t.Errorf("govulncheck version = %q, want v1.2.0", cfg.Tools["govulncheck"].Version)
 	}
-	if cfg.Tools["nilaway"].Version != "latest" {
-		t.Errorf("nilaway version should default to latest when omitted, got %q", cfg.Tools["nilaway"].Version)
+	if cfg.Tools["nilaway"].Version != NilawayVersion {
+		t.Errorf("nilaway version should default to %s when omitted, got %q", NilawayVersion, cfg.Tools["nilaway"].Version)
 	}
 }
 
@@ -112,7 +134,7 @@ func TestValidateExtraArgsReservedFlag(t *testing.T) {
 		Timeout: 5 * time.Minute,
 		Tools: map[string]ToolConfig{
 			"golangci-lint": {
-				Version:   "v2.11.4",
+				Version:   "v2.14.0",
 				ExtraArgs: []string{"--out-format=text"},
 			},
 		},
@@ -170,5 +192,79 @@ func TestResolveTimeout(t *testing.T) {
 	cfg.Timeout = 10 * time.Minute
 	if cfg.ResolveTimeout() != 10*time.Minute {
 		t.Errorf("explicit timeout = %v", cfg.ResolveTimeout())
+	}
+}
+
+// TestGolangciLintVersionIsConsistent guards against the pinned golangci-lint
+// version drifting between the Go default and the build/CI/docs copies of it.
+func TestGolangciLintVersionIsConsistent(t *testing.T) {
+	files := []string{
+		"../../Makefile",
+		"../../Dockerfile",
+		"../../README.md",
+		"../../.github/workflows/lint.yml",
+		"../../docs/agents/AGENTS.md",
+		"../../docs/agents/reference.md",
+		"../../examples/config/ci.yaml",
+		"../../examples/config/dev-iteration.yaml",
+		"../../examples/config/monorepo.yaml",
+	}
+	re := regexp.MustCompile(`v2\.\d+\.\d+`)
+	for _, f := range files {
+		body, err := os.ReadFile(filepath.Clean(f))
+		if err != nil {
+			t.Fatalf("reading %s: %v", f, err)
+		}
+		found := re.FindAllString(string(body), -1)
+		if len(found) == 0 {
+			t.Errorf("%s does not reference the golangci-lint pin %s", f, GolangciLintVersion)
+			continue
+		}
+		for _, v := range found {
+			if v != GolangciLintVersion {
+				t.Errorf("%s references %s, want %s", f, v, GolangciLintVersion)
+			}
+		}
+	}
+}
+
+// TestPinnedVersionsAreConsistent guards the other two pins. Both are installed
+// by the Dockerfile, so drift there ships an image whose pre-baked tools the
+// server then reinstalls on every start.
+func TestPinnedVersionsAreConsistent(t *testing.T) {
+	files := []string{
+		"../../Dockerfile",
+		"../../README.md",
+		"../../docs/agents/AGENTS.md",
+		"../../docs/agents/reference.md",
+		"../../examples/config/ci.yaml",
+		"../../examples/config/dev-iteration.yaml",
+		"../../examples/config/monorepo.yaml",
+	}
+	pins := map[string]string{
+		"golangci-lint": GolangciLintVersion,
+		"govulncheck":   GovulncheckVersion,
+		"nilaway":       NilawayVersion,
+	}
+	for _, f := range files {
+		body, err := os.ReadFile(filepath.Clean(f))
+		if err != nil {
+			t.Fatalf("reading %s: %v", f, err)
+		}
+		text := string(body)
+		for name, version := range pins {
+			if !strings.Contains(text, version) {
+				t.Errorf("%s does not reference the %s pin %s", f, name, version)
+			}
+		}
+	}
+	// The Dockerfile pre-bakes the tools; an unpinned install there ships an
+	// image the server immediately repairs on first use.
+	dockerfile, err := os.ReadFile("../../Dockerfile")
+	if err != nil {
+		t.Fatalf("reading Dockerfile: %v", err)
+	}
+	if strings.Contains(string(dockerfile), "@latest") {
+		t.Error("Dockerfile installs a tool @latest; pins must be explicit")
 	}
 }

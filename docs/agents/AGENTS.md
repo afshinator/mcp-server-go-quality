@@ -8,8 +8,8 @@ For error handling tables, native output examples, and troubleshooting, see
 
 ## What this server does
 
-Runs three Go code quality tools against a Go project and returns a unified
-`Diagnostic[]` array:
+Runs three Go code quality tools against a Go project and returns results as a
+`{"diagnostics": [...]}` envelope containing a unified `Diagnostic[]` array:
 
 | Tool | What it finds |
 |---|---|
@@ -58,7 +58,13 @@ Omitting `tools` or passing an empty array runs all three.
 
 ## Response: the Diagnostic array
 
-Every check call returns a flat `Diagnostic[]` sorted by `file` then `line`.
+Every check call returns an object with a `diagnostics` array sorted by `file`
+then `line`. The array is available as `structuredContent.diagnostics`; the
+text content block carries the same JSON.
+
+```json
+{ "diagnostics": [ /* Diagnostic[] */ ] }
+```
 
 ```typescript
 interface Diagnostic {
@@ -81,7 +87,8 @@ when zero/empty. Use `.get("column")` / `.get("severity")`, not `["column"]` / `
 ## Processing loop
 
 ```python
-diagnostics = call("run_code_checks", project_path="/home/user/myproject")
+response    = call("run_code_checks", project_path="/home/user/myproject")
+diagnostics = response["diagnostics"]
 
 for d in diagnostics:
     # Check error FIRST — tool-level failure, other tools may have succeeded
@@ -102,7 +109,7 @@ for d in diagnostics:
     #   nilaway       → full nil-propagation chain
 ```
 
-An empty array `[]` means no issues found. It is not an error.
+An empty `diagnostics` array means no issues found. It is not an error.
 
 ---
 
@@ -134,13 +141,13 @@ timeout: 5m          # per-tool deadline; increase for large monorepos or first 
 
 tools:
   golangci-lint:
-    version: v2.11.4   # pinned; override at your own risk
+    version: v2.14.0   # pinned; override at your own risk
     extra_args: []
   govulncheck:
-    version: latest
+    version: v1.9.0   # pinned
     extra_args: []
   nilaway:
-    version: latest
+    version: v0.0.0-20260918162853-acb8859b9031   # pinned
     extra_args: ["--exclude-pkgs=github.com/myorg/vendor"]
 ```
 

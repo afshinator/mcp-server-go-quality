@@ -34,7 +34,11 @@ This project enforces red-green-refactor TDD. Nearly every source file has a com
 
 ## Architecture
 
-Package structure, design decisions, and implementation history are in `docs/superpowers/`. Start with the spec (`specs/spec-v3.md`) for the design rationale.
+Open work and known gaps are tracked in [`TODO.md`](TODO.md) — that is the work
+list. Package structure, design decisions, and implementation history are in
+`docs/superpowers/`, which are historical records; see its
+[README](docs/superpowers/README.md). The MCP-currency audit and its evidence
+are in [`docs/mcp-spec-currency.md`](docs/mcp-spec-currency.md).
 
 ## Pull request checklist
 

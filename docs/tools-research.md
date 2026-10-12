@@ -1,5 +1,9 @@
 # Go Code Quality Tools — Research & Overlap Analysis
 
+> **HISTORICAL RECORD — superseded.** Version numbers below (e.g. golangci-lint
+> `v2.11.4`) are the ones observed when this research was done. See
+> [`../TODO.md`](../TODO.md) for current pinned versions.
+
 ## Tools Under Consideration
 
 ### 1. golangci-lint (v2.11.4 installed)

@@ -67,13 +67,7 @@ func main() {
 		}
 	}
 
-	s := mcpserver.NewMCPServer(
-		"go-quality",
-		version.String(),
-		mcpserver.WithToolCapabilities(true),
-	)
-
-	registerTools(s, cfg, binDir, versionCache)
+	s := newServer(cfg, binDir, versionCache)
 
 	log.Printf("[init] mcp-server-go-quality %s ready", version.String())
 
@@ -82,46 +76,64 @@ func main() {
 	}
 }
 
+// newServer builds the MCP server with all tools registered. Output schema
+// validation is enabled so a result that drifts from a tool's declared
+// outputSchema fails loudly instead of reaching the client.
+func newServer(cfg config.Config, binDir string, versionCache *discover.Cache) *mcpserver.MCPServer {
+	s := mcpserver.NewMCPServer(
+		"go-quality",
+		version.String(),
+		mcpserver.WithToolCapabilities(true),
+		mcpserver.WithOutputSchemaValidation(),
+	)
+	registerTools(s, cfg, binDir, versionCache)
+	return s
+}
+
 func registerTools(s *mcpserver.MCPServer, cfg config.Config, binDir string, versionCache *discover.Cache) {
 	s.AddTool(mcp.NewTool(
 		"run_code_checks",
-		mcp.WithDescription("Run golangci-lint, govulncheck, and nilaway in parallel against a Go project. Returns unified Diagnostic[] sorted by file:line:column. Use when you want a full quality sweep in one call."),
+		mcp.WithDescription("Run golangci-lint, govulncheck, and nilaway in parallel against a Go project. Returns {\"diagnostics\": [...]}, a unified array sorted by file:line:column. Use when you want a full quality sweep in one call."),
 		mcp.WithReadOnlyHintAnnotation(true),
 		mcp.WithDestructiveHintAnnotation(false),
 		mcp.WithIdempotentHintAnnotation(true),
 		mcp.WithOpenWorldHintAnnotation(true),
 		mcp.WithString("project_path", mcp.Description("Absolute or relative path to the Go project root. Omit to use the server's working directory.")),
 		mcp.WithArray("tools", mcp.Description("Subset of checkers to run. Valid values: golangci-lint, govulncheck, nilaway. Omit to run all three.")),
+		diagnosticsOutputSchema(),
 	), makeRunAllHandler(cfg, binDir, versionCache))
 
 	s.AddTool(mcp.NewTool(
 		"run_lint",
-		mcp.WithDescription("Run golangci-lint against a Go project. Returns lint violations, complexity issues, and security patterns as Diagnostic[]. Use when you need fast lint feedback without running the full checker suite."),
+		mcp.WithDescription("Run golangci-lint against a Go project. Returns {\"diagnostics\": [...]} containing lint violations, complexity issues, and security patterns. Use when you need fast lint feedback without running the full checker suite."),
 		mcp.WithReadOnlyHintAnnotation(true),
 		mcp.WithDestructiveHintAnnotation(false),
 		mcp.WithIdempotentHintAnnotation(true),
 		mcp.WithOpenWorldHintAnnotation(true),
 		mcp.WithString("project_path", mcp.Description("Absolute or relative path to the Go project root. Omit to use the server's working directory.")),
+		diagnosticsOutputSchema(),
 	), makeSingleHandler(toolname.GolangciLint, cfg, binDir, versionCache))
 
 	s.AddTool(mcp.NewTool(
 		"run_vuln_check",
-		mcp.WithDescription("Run govulncheck against a Go project. Returns known CVEs reachable from your code via call-graph analysis as Diagnostic[]. Use when auditing dependencies for security vulnerabilities."),
+		mcp.WithDescription("Run govulncheck against a Go project. Returns {\"diagnostics\": [...]} of known CVEs reachable from your code via call-graph analysis. Use when auditing dependencies for security vulnerabilities."),
 		mcp.WithReadOnlyHintAnnotation(true),
 		mcp.WithDestructiveHintAnnotation(false),
 		mcp.WithIdempotentHintAnnotation(true),
 		mcp.WithOpenWorldHintAnnotation(true),
 		mcp.WithString("project_path", mcp.Description("Absolute or relative path to the Go project root. Omit to use the server's working directory.")),
+		diagnosticsOutputSchema(),
 	), makeSingleHandler(toolname.Govulncheck, cfg, binDir, versionCache))
 
 	s.AddTool(mcp.NewTool(
 		"run_nil_check",
-		mcp.WithDescription("Run nilaway against a Go project. Returns potential nil-panic paths detected via inter-procedural static analysis as Diagnostic[]. Use when hardening new code or diagnosing nil-dereference bugs."),
+		mcp.WithDescription("Run nilaway against a Go project. Returns {\"diagnostics\": [...]} of potential nil-panic paths detected via inter-procedural static analysis. Use when hardening new code or diagnosing nil-dereference bugs."),
 		mcp.WithReadOnlyHintAnnotation(true),
 		mcp.WithDestructiveHintAnnotation(false),
 		mcp.WithIdempotentHintAnnotation(true),
 		mcp.WithOpenWorldHintAnnotation(true),
 		mcp.WithString("project_path", mcp.Description("Absolute or relative path to the Go project root. Omit to use the server's working directory.")),
+		diagnosticsOutputSchema(),
 	), makeSingleHandler(toolname.Nilaway, cfg, binDir, versionCache))
 
 	s.AddTool(mcp.NewTool(
@@ -132,6 +144,7 @@ func registerTools(s *mcpserver.MCPServer, cfg config.Config, binDir string, ver
 		mcp.WithIdempotentHintAnnotation(true),
 		mcp.WithOpenWorldHintAnnotation(true),
 		mcp.WithArray("tools", mcp.Description("Subset of tools to install. Valid values: golangci-lint, govulncheck, nilaway. Omit to install all three.")),
+		mcp.WithOutputSchema[InstallResult](),
 	), makeInstallHandler(cfg, binDir, versionCache))
 }
 
@@ -375,11 +388,38 @@ func formatHandlerError(ctx context.Context, timeout time.Duration, err error) s
 	return err.Error()
 }
 
+// DiagnosticsResponse is the result envelope returned by the check tools. The
+// MCP tools spec requires structuredContent and outputSchema to be a JSON
+// object, so the flat Diagnostic[] is nested under "diagnostics".
+type DiagnosticsResponse struct {
+	Diagnostics []diagnostic.Diagnostic `json:"diagnostics"`
+}
+
+// diagnosticsOutputSchema declares the output schema for the check tools,
+// derived from DiagnosticsResponse. The generator infers json.RawMessage
+// (Diagnostic.Native) as a byte array, so native is widened to any JSON value.
+func diagnosticsOutputSchema() mcp.ToolOption {
+	return func(t *mcp.Tool) {
+		mcp.WithOutputSchema[DiagnosticsResponse]()(t)
+		diag, _ := t.OutputSchema.Properties["diagnostics"].(map[string]any)
+		items, _ := diag["items"].(map[string]any)
+		props, ok := items["properties"].(map[string]any)
+		if !ok {
+			// The generated schema no longer has the shape this widening expects
+			// (e.g. mcp-go switched to $ref/$defs). Fail loudly rather than ship a
+			// schema that rejects every real result.
+			panic("mcp-server-go-quality: diagnostics outputSchema item properties not found; " +
+				"mcp-go changed its schema generation — see diagnosticsOutputSchema")
+		}
+		props["native"] = map[string]any{}
+	}
+}
+
 func marshalDiagnostics(diags []diagnostic.Diagnostic) (*mcp.CallToolResult, error) {
 	if diags == nil {
 		diags = []diagnostic.Diagnostic{}
 	}
-	result, err := mcp.NewToolResultJSON(diags)
+	result, err := mcp.NewToolResultJSON(DiagnosticsResponse{Diagnostics: diags})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("marshaling results: %v", err)), nil
 	}

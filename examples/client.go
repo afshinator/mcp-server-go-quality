@@ -2,7 +2,7 @@
 //
 // Build and run:
 //
-//	go run examples/client.go testdata/sample_project
+//	go run examples/client.go testdata/sample_project   # from the repo root
 //
 // This demonstrates connecting to the server over stdio, listing tools,
 // installing quality tools, and calling run_code_checks against a Go project.
@@ -11,7 +11,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -32,9 +31,9 @@ func main() {
 	defer cancel()
 
 	stdio := transport.NewStdio(
-		"go-quality",
+		"go",
 		nil,
-		"go", "run", "github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@latest",
+		"run", "./cmd/mcp-server-go-quality",
 	)
 
 	c := client.NewClient(
@@ -79,28 +78,35 @@ func main() {
 		os.Exit(1)
 	}
 
-	for _, content := range result.Content {
-		if text, ok := content.(mcp.TextContent); ok {
-			var diags []map[string]any
-			if err := json.Unmarshal([]byte(text.Text), &diags); err != nil {
-				fmt.Fprintf(os.Stderr, "failed to parse diagnostics: %v\n", err)
-				os.Exit(1)
-			}
-			if len(diags) == 0 {
-				fmt.Println("No issues found.")
-				return
-			}
-			for _, d := range diags {
-				if errMsg, ok := d["error"].(string); ok && errMsg != "" {
-					fmt.Printf("[%s] ERROR: %s\n", d["tool"], errMsg)
-					continue
-				}
-				severity := ""
-				if s, ok := d["severity"].(string); ok && s != "" {
-					severity = fmt.Sprintf(" (%s)", s)
-				}
-				fmt.Printf("[%s]%s %s:%v — %s\n", d["tool"], severity, d["file"], d["line"], d["message"])
-			}
+	// The result carries the diagnostics envelope as structuredContent (and a
+	// JSON text fallback for clients that do not read structuredContent).
+	structured, ok := result.StructuredContent.(map[string]any)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "unexpected result shape: %T\n", result.StructuredContent)
+		os.Exit(1)
+	}
+	diags, ok := structured["diagnostics"].([]any)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "missing diagnostics array in result\n")
+		os.Exit(1)
+	}
+	if len(diags) == 0 {
+		fmt.Println("No issues found.")
+		return
+	}
+	for _, entry := range diags {
+		d, ok := entry.(map[string]any)
+		if !ok {
+			continue
 		}
+		if errMsg, ok := d["error"].(string); ok && errMsg != "" {
+			fmt.Printf("[%s] ERROR: %s\n", d["tool"], errMsg)
+			continue
+		}
+		severity := ""
+		if s, ok := d["severity"].(string); ok && s != "" {
+			severity = fmt.Sprintf(" (%s)", s)
+		}
+		fmt.Printf("[%s]%s %s:%v — %s\n", d["tool"], severity, d["file"], d["line"], d["message"])
 	}
 }

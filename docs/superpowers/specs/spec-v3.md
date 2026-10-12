@@ -1,5 +1,11 @@
 # mcp-server-go-quality — Design Spec v3
 
+> **HISTORICAL RECORD — superseded.** Written before the `2026-07-28` MCP
+> protocol migration. It targets protocol `2025-03-26` and pins golangci-lint
+> `v2.11.4`; both are obsolete, and the `initialize` handshake it describes no
+> longer exists in the current protocol. See [`../README.md`](../README.md) for
+> current state and [`../../../TODO.md`](../../../TODO.md) for outstanding work.
+
 
 ## Overview
 

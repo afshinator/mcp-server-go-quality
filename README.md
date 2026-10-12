@@ -2,14 +2,14 @@
 
 # mcp-server-go-quality
 
-**One MCP server for golangci-lint, govulncheck, and nilaway — a unified `Diagnostic[]` array with consistent file:line:column navigation, parallel execution, and zero-config auto-install.**
+**One MCP server for golangci-lint, govulncheck, and nilaway — a unified `Diagnostic[]` result with consistent file:line:column navigation, parallel execution, and zero-config auto-install.**
 
 ---
 
 [![Test](https://github.com/afshinator/mcp-server-go-quality/actions/workflows/test.yml/badge.svg)](https://github.com/afshinator/mcp-server-go-quality/actions/workflows/test.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/afshinator/mcp-server-go-quality)](https://goreportcard.com/report/github.com/afshinator/mcp-server-go-quality)
 [![Go Reference](https://pkg.go.dev/badge/github.com/afshinator/mcp-server-go-quality.svg)](https://pkg.go.dev/github.com/afshinator/mcp-server-go-quality)
-[![MCP](https://img.shields.io/badge/MCP-2025--03--26-blueviolet)]()
+[![MCP](https://img.shields.io/badge/MCP-2026--07--28-blueviolet)]()
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ---
@@ -22,12 +22,12 @@
 
 ## What it does
 
-Wraps three Go code quality tools into a single MCP interface. Designed for **AI coding agents** (Claude Code, Codex, OpenCode, ...) but also useful for CI pipelines and local development. Call one tool (`run_code_checks`) and get a flat, sorted `Diagnostic[]` array — all three checkers run in parallel under independent timeouts. Tools auto-install on first use.
+Wraps three Go code quality tools into a single MCP interface. Designed for **AI coding agents** (Claude Code, Codex, OpenCode, ...) but also useful for CI pipelines and local development. Call one tool (`run_code_checks`) and get one sorted `Diagnostic[]` result — all three checkers run in parallel under independent timeouts. Tools auto-install on first use.
 
 | Concern | Raw CLI | This server |
 |---|---|---|
 | Entry points | 3 separate `go install` + invocation | 1 MCP tool call |
-| Output format | 3 incompatible schemas | 1 unified `Diagnostic[]` array |
+| Output format | 3 incompatible schemas | 1 unified `Diagnostic[]` result |
 | Tool install | Manual per machine | Auto-install with version pinning |
 | Concurrency | Sequential by default | Parallel goroutines, per-tool timeouts |
 | Error handling | Parse exit codes and stderr manually | Canonical `error` field per diagnostic, panic recovery |
@@ -40,9 +40,9 @@ Wraps three Go code quality tools into a single MCP interface. Designed for **AI
 
 | Tool | Version | Checks |
 |---|---|---|
-| [golangci-lint](https://golangci-lint.run) | **v2.11.4** (pinned) | Lint violations, complexity (`gocyclo`/`gocognit`), security (`gosec`) |
-| [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) | latest | Known CVEs reachable from your code via call-graph analysis |
-| [nilaway](https://github.com/uber-go/nilaway) | latest | Inter-procedural nil-panic paths the compiler won't catch |
+| [golangci-lint](https://golangci-lint.run) | **v2.14.0** (pinned) | Lint violations, complexity (`gocyclo`/`gocognit`), security (`gosec`) |
+| [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) | **v1.9.0** (pinned) | Known CVEs reachable from your code via call-graph analysis |
+| [nilaway](https://github.com/uber-go/nilaway) | **v0.0.0-20260918162853-acb8859b9031** (pinned) | Inter-procedural nil-panic paths the compiler won't catch |
 
 ---
 
@@ -50,32 +50,39 @@ Wraps three Go code quality tools into a single MCP interface. Designed for **AI
 
 | Tool | Description |
 |---|---|
-| `run_code_checks` | Run all 3 checkers in parallel (or a subset via `tools` param). Returns sorted `Diagnostic[]`. |
+| `run_code_checks` | Run all 3 checkers in parallel (or a subset via `tools` param). Returns `{"diagnostics": [...]}`, sorted `Diagnostic[]` inside. |
 | `run_lint` | Run golangci-lint only. |
 | `run_vuln_check` | Run govulncheck only. |
 | `run_nil_check` | Run nilaway only. |
-| `install_tools` | Pre-install all three tools with pinned/latest versions. Call this at session start. |
+| `install_tools` | Pre-install all three tools at their pinned versions. Call this at session start. |
 
 ---
 
 ## Output schema
 
-Every tool returns a flat array of this shape, sorted by `file` then `line`:
+Every check tool returns a sorted `Diagnostic[]` wrapped in a `diagnostics`
+object, sorted by `file` then `line`. The same JSON is returned as
+`structuredContent` (validated against each tool's declared `outputSchema`) and
+as a text content block for backward compatibility:
 
 ```json
-[
-  {
-    "tool": "golangci-lint",
-    "file": "cmd/main.go",
-    "line": 115,
-    "column": 1,
-    "severity": "warning",
-    "message": "cognitive complexity 18 is high (> 15)",
-    "error": "",
-    "native": {"FromLinter": "gocognit", "Text": "...", "SuggestedFixes": [...]}
-  }
-]
+{
+  "diagnostics": [
+    {
+      "tool": "golangci-lint",
+      "file": "cmd/main.go",
+      "line": 115,
+      "column": 1,
+      "severity": "warning",
+      "message": "cognitive complexity 18 is high (> 15)",
+      "error": "",
+      "native": {"FromLinter": "gocognit", "Text": "...", "SuggestedFixes": [...]}
+    }
+  ]
+}
 ```
+
+`install_tools` returns its own object: `{ "installed": [], "already_present": [], "failed": [] }`.
 
 | Field | Notes |
 |---|---|
@@ -123,7 +130,7 @@ mcp-server-go-quality --config ./my-config.yaml
 
 The server starts in stdio mode — connect any MCP client or test it interactively by piping JSON-RPC. Tools auto-install into `$GOBIN` on first use.
 
-**Prerequisites:** Go 1.21+ on `PATH` (the toolchain directive in `go.mod` downloads the exact required version automatically).
+**Prerequisites:** Go 1.25+ on `PATH` (the toolchain directive in `go.mod` downloads the exact required version automatically).
 
 ---
 
@@ -147,13 +154,13 @@ timeout: 5m          # per-tool deadline; increase for big monorepos or first vu
 
 tools:
   golangci-lint:
-    version: v2.11.4
+    version: v2.14.0
     extra_args: []
   govulncheck:
-    version: latest
+    version: v1.9.0   # pinned
     extra_args: []
   nilaway:
-    version: latest
+    version: v0.0.0-20260918162853-acb8859b9031   # pinned
     extra_args: ["--exclude-pkgs=github.com/myorg/vendor"]
 ```
 
@@ -170,6 +177,9 @@ Supports single-module `go.mod` and `go.work` multi-module workspaces. Pass any 
 ## Contributing
 
 TDD enforced — nearly every source file has a companion `_test.go` file. Integration tests run against [`testdata/sample_project/`](testdata/sample_project/), a small Go module with intentional issues for all three tools.
+
+Open work and known gaps are tracked in [TODO.md](TODO.md). The MCP-currency
+audit and its evidence are in [docs/mcp-spec-currency.md](docs/mcp-spec-currency.md).
 
 ```bash
 make test       # unit tests (fast)

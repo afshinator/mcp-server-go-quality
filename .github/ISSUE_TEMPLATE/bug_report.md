@@ -19,5 +19,5 @@ assignees: ""
 ## Environment
 
 - Go version:
-- Server version (`go-quality --version`):
+- Server version (`mcp-server-go-quality --version`):
 - MCP client:

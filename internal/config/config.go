@@ -25,6 +25,37 @@ var reservedByTool = map[string][]string{
 	"nilaway":       {"-json", "-pretty-print"},
 }
 
+// Pinned tool versions. Keep these in sync with the Dockerfile and the docs;
+// TestPinnedVersionsAreConsistent enforces this, and the version of the
+// golangci-lint pin is additionally enforced across the Makefile, CI, and
+// example configs.
+const (
+	// GolangciLintVersion is the pinned golangci-lint version.
+	GolangciLintVersion = "v2.14.0"
+	// GovulncheckVersion is the pinned govulncheck version. The vulnerability
+	// database is still fetched at run time; this pins the analysis binary.
+	GovulncheckVersion = "v1.9.0"
+	// NilawayVersion is the pinned nilaway version (upstream publishes no tags,
+	// so this is a pseudo-version). Note: nilaway requires Go >= 1.26.0 to
+	// build, so GOTOOLCHAIN=auto fetches a second toolchain to install it.
+	NilawayVersion = "v0.0.0-20260918162853-acb8859b9031"
+)
+
+// DefaultVersion returns the pinned version for a tool, or "latest" for tools
+// without a pin. This is the single source for both Default() and Load().
+func DefaultVersion(toolName string) string {
+	switch toolName {
+	case "golangci-lint":
+		return GolangciLintVersion
+	case "govulncheck":
+		return GovulncheckVersion
+	case "nilaway":
+		return NilawayVersion
+	default:
+		return "latest"
+	}
+}
+
 func ReservedFlags(toolName string) []string {
 	return reservedByTool[toolName]
 }
@@ -33,9 +64,9 @@ func Default() Config {
 	return Config{
 		Timeout: 5 * time.Minute,
 		Tools: map[string]ToolConfig{
-			"golangci-lint": {Version: "v2.11.4"},
-			"govulncheck":   {Version: "latest"},
-			"nilaway":       {Version: "latest"},
+			"golangci-lint": {Version: DefaultVersion("golangci-lint")},
+			"govulncheck":   {Version: DefaultVersion("govulncheck")},
+			"nilaway":       {Version: DefaultVersion("nilaway")},
 		},
 	}
 }
@@ -106,10 +137,7 @@ func Load(path string) (Config, error) {
 	for name := range cfg.Tools {
 		tc := cfg.Tools[name]
 		if tc.Version == "" {
-			tc.Version = "latest"
-			if name == "golangci-lint" {
-				tc.Version = "v2.11.4"
-			}
+			tc.Version = DefaultVersion(name)
 			cfg.Tools[name] = tc
 		}
 	}

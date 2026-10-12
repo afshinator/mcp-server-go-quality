@@ -3,9 +3,9 @@ timeout: 10m
 
 tools:
   golangci-lint:
-    version: v2.11.4
+    version: v2.14.0
     extra_args: ["--timeout=5m"]
   govulncheck:
-    version: latest
+    version: v1.9.0
   nilaway:
-    version: latest
+    version: v0.0.0-20260918162853-acb8859b9031
