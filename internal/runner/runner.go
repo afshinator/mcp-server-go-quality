@@ -74,11 +74,26 @@ func (r *ExecRunner) Run(ctx context.Context, name string, args ...string) ([]by
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
+			cause := err
+			// exec.CommandContext kills the process when ctx is done, and os/exec
+			// then prefers the process's own error, discarding the context error.
+			// Without reattaching it here, a real timeout is indistinguishable
+			// from a crash and is reported as "exit code -1" instead of
+			// "timed out after <d>". Only a signal-kill (negative exit code) means
+			// the context caused the exit; a genuine non-zero exit that merely
+			// coincides with a done context must keep reporting its own error.
+			//
+			// shortcut: signal-kill detection is Unix-shaped, so on Windows a
+			// timeout still surfaces as an exit error; revisit if Windows
+			// timeout reporting matters.
+			if exitErr.ExitCode() < 0 && ctx.Err() != nil {
+				cause = errors.Join(err, ctx.Err())
+			}
 			return stdout.Bytes(), &ExitError{
 				ExitCode: exitErr.ExitCode(),
 				Stderr:   stderr.String(),
 				Stdout:   stdout.Bytes(),
-				Err:      err,
+				Err:      cause,
 			}
 		}
 		return stdout.Bytes(), err

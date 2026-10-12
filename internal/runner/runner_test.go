@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"os/exec"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -113,4 +115,50 @@ func TestExitCodeHelper(t *testing.T) {
 			t.Error("expected false for plain error")
 		}
 	})
+}
+
+// TestExecRunnerTimeoutSurfacesDeadline runs a real subprocess to its deadline.
+// This is the path production actually takes: exec.CommandContext kills the
+// process and os/exec reports the process error, so the context error has to be
+// reattached for errors.Is to classify it as a timeout.
+func TestExecRunnerTimeoutSurfacesDeadline(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("signal-kill detection is Unix-shaped; see runner.go")
+	}
+	r := &ExecRunner{}
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+
+	_, err := r.Run(ctx, "sleep", "5")
+	if err == nil {
+		t.Fatal("expected an error from a killed subprocess")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("errors.Is(err, context.DeadlineExceeded) = false; err = %v", err)
+	}
+	// The exit-error shape callers depend on must survive.
+	var exitErr *ExitError
+	if !errors.As(err, &exitErr) {
+		t.Errorf("errors.As(err, *ExitError) = false; err = %T", err)
+	} else if exitErr.ExitCode >= 0 {
+		t.Errorf("ExitCode = %d, want a negative (signal-killed) code", exitErr.ExitCode)
+	}
+}
+
+// TestExecRunnerRealExitKeepsItsOwnError guards the other half of the rule: a
+// genuine non-zero exit must not be rewritten as a timeout just because the
+// context was done by the time the process finished.
+func TestExecRunnerRealExitKeepsItsOwnError(t *testing.T) {
+	r := &ExecRunner{}
+	ctx := context.Background()
+	_, err := r.Run(ctx, "go", "build", "./does-not-exist.go")
+	if err == nil {
+		t.Fatal("expected an error from a failing build")
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		t.Errorf("real exit misclassified as a context error: %v", err)
+	}
+	if !strings.Contains(err.Error(), "exit code") {
+		t.Errorf("err = %v, want an exit-code message", err)
+	}
 }
