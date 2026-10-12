@@ -1,0 +1,554 @@
+# task-t3-t4-hardening
+#
+# WHAT THIS IS. One combined run closing two open TODO items against
+# mcp-server-go-quality, using per-decision diverge-and-defend so each
+# load-bearing decision is opposed by a different model BEFORE any code is
+# written.
+#
+# ---------------------------------------------------------------------------
+# T3 — Windows timeout reporting
+#
+# `internal/runner/runner.go` (ExecRunner.Run) runs subprocesses with
+# exec.CommandContext. When the deadline fires, Go kills the process, and os/exec
+# then prefers the PROCESS's own error, discarding the context error. So Run
+# returned *ExitError{ExitCode: -1} whose chain never contained
+# context.DeadlineExceeded, and formatHandlerError / formatCheckerError classified
+# a real timeout as a crash ("Tool command failed with exit code -1").
+#
+# A first fix is already on main: when the exit code is negative AND ctx.Err() is
+# non-nil, the context error is reattached via errors.Join. That is Unix-shaped --
+# "killed by a signal" is a negative exit code on Unix but not on Windows -- and
+# there is an inline `shortcut:` comment saying so.
+#
+# The replacement must not depend on the platform at all. A runtime.GOOS branch
+# or another exit-code-sign test just relocates the bug. Go 1.20+ exposes
+# `cmd.Cancel`, a hook invoked when the context is done; it is one candidate to
+# evaluate, not an answer to assume. go.mod requires Go 1.25.9, so anything from
+# 1.20 onward is available.
+#
+# T4 — Pinned tool versions have no automated bump path
+#
+# The server pins three external tools and installs them on demand:
+#   golangci-lint  v2.14.0
+#   govulncheck    v1.9.0
+#   nilaway        v0.0.0-20260918162853-acb8859b9031
+# internal/config/config.go holds them in three consts (GolangciLintVersion,
+# GovulncheckVersion, NilawayVersion) exposed through DefaultVersion(name). The
+# same literal version strings are ALSO written in:
+#   Dockerfile, README.md, docs/agents/AGENTS.md, docs/agents/reference.md,
+#   examples/config/{ci,dev-iteration,monorepo}.yaml
+# and two tests enforce that all of them agree:
+#   internal/config/config_test.go  TestGolangciLintVersionIsConsistent
+#   internal/config/config_test.go  TestPinnedVersionsAreConsistent
+#
+# Dependabot covers go.mod and GitHub Actions but CANNOT see these pins, so they
+# go stale silently, and a stale govulncheck means weaker vulnerability
+# detection. A bump currently means hand-editing seven files.
+#
+# ---------------------------------------------------------------------------
+# WHY THE ROSTER LOOKS LIKE THIS
+#
+# A write-then-review run gets one set of eyes on an artifact that already
+# exists, and the implementer makes every design call alone. This run instead
+# front-loads the disagreement: each load-bearing decision is stated by the
+# implementer, opposed by `adversary` (a different model, correctness and risk),
+# challenged by `ponytail` (a third model, over-engineering and YAGNI), answered
+# by the implementer with a disposition, and recorded by the supervisor -- all
+# before implementation starts.
+#
+# `adversary` attests the final DoD because it never writes code. `ponytail`
+# never writes code either, and must not be usable as a licence to cut safety:
+# it is explicitly barred from proposing removal of the regression test, the
+# context-error reattachment, or the drift detector's failing direction.
+#
+# MODEL SPLIT. The three peers use three different providers, so no two of them
+# share a single outage or entitlement failure. The supervisor shares
+# `openai/gpt-6-luna` with the implementer. That is the least bad of the three
+# available options: the supervisor judges the implementer's decisions, but the
+# other two voices that must be satisfied are both different models, so the
+# judgement is not same-model-only. If you would rather the supervisor differ
+# from every peer, give it a fourth slug here.
+#
+# EVIDENCE RULE (applies to every participant, on every claim).
+#
+# The decision rounds are only worth their cost if the conclusions are forced
+# rather than asserted. So every position -- the implementer's direction, the
+# adversary's objection, the ponytail reduction, and the supervisor's call --
+# must carry BOTH a reason and evidence, and each evidence item is labelled with
+# how it was established:
+#
+#   exec-here   a command run in this workspace, with its raw output pasted.
+#               The strongest class. Also a test actually observed to pass or fail.
+#   citation    a path:line quote from this repo, the Go standard library, or a
+#               dependency in the module cache. Quote it; do not paraphrase.
+#   reasoned    a logical argument that names its assumptions. Allowed ONLY where
+#               neither of the above is possible, and it must say why.
+#
+# Three hard rules, taken from the spec-plan-adversarial precedent:
+#   1. An unsupported claim is WITHDRAWN, not accepted. "It might race" is not an
+#      objection; a cited interleaving or a failing test is.
+#   2. A claim backed by exec-here must be independently reproducible by the
+#      adversary, which must reproduce at least the single most load-bearing one
+#      and say so. A pasted output nobody re-ran proves nothing.
+#   3. The burden is SYMMETRIC. The adversary may not block with an unfalsifiable
+#      objection any more than the implementer may proceed on an unargued
+#      preference.
+#
+# The honest boundary, stated so no peer can fake past it: neither peer can
+# execute on Windows. So "this is platform-independent" CANNOT be proven here by
+# execution. It must be proven by citation to the Go source for how a
+# context-caused kill is reported on each platform, or by a test that runs
+# unskipped on whatever platform it is on. Any such claim must carry a
+# "confidence limit" line saying what it does NOT prove.
+#
+# DEPTH RULE -- how this run stops the rounds from becoming well-formatted and
+# shallow. You cannot ask a model to "be deep"; you can require artifacts that
+# shallow work cannot produce. So the protocol demands three of them:
+#   1. A FALSIFIER. The implementer must name the observation that would change
+#      its mind, before the adversary tests it. A direction with no falsifier is
+#      an opinion.
+#   2. TWO ENUMERATED CHALLENGES. Agreement is not a cheap exit. The adversary
+#      must surface at least two specific, evidence-labelled candidate failure
+#      modes and classify each blocking or non-blocking. Enumerating failure
+#      modes is the work; agreeing is the hard-earned conclusion, not the default.
+#   3. A DEMONSTRATED CANARY. The regression test must be shown to FAIL without
+#      the fix and PASS with it, with raw output for both. That single experiment
+#      is the best available proxy for whether the round was real.
+# A round whose evidence is entirely class `reasoned`, or which tested no
+# falsifier, is rejected and re-run. The supervisor enforces this.
+#
+# ATTESTATION RULE -- how a technical miss on the DoD is caught. The finalize gate
+# only counts verdicts; it does not check that a verdict means what the criterion
+# says. So the supervisor builds a table mapping EVERY DoD criterion to the exact
+# command that establishes it, the adversary runs each command and pastes its raw
+# output as that verdict's evidence, and `ponytail` independently checks that
+# every evidence locator actually resolves. A verdict the attester did not
+# personally run is a fail, not a soft pass.
+
+version: "1.1"
+
+session:
+  id: "task-t3-t4-hardening"
+  workspace_root: "/Users/afshin/Documents/dev/mcp-server-go-quality"
+  max_cost_usd: 1.60                # PEER ceiling: 0.90 + 0.40 + 0.30. Supervisor spend is NOT in this number.
+  agent_stop_threshold_percent: 95  # one reviewer-driven fix round of headroom
+  stop_at_work_order_boundary: true
+  verify_models: strict
+  peer_prompt_timeout_ms: 300000
+  supervisor_model: "openai/gpt-6-luna"
+  supervisor_system_prompt: |
+    You coordinate a bounded hardening run in mcp-server-go-quality. You own the
+    run contract and the decision log. You never write the code and you never
+    implement a decision yourself.
+
+    Environment facts that will otherwise cost a round trip:
+      - `go` is at ~/.local/bin/go and is already on PATH.
+      - `golangci-lint` and `gofumpt` are in $HOME/go/bin, which is NOT on a
+        non-interactive PATH. `export PATH="$HOME/go/bin:$PATH"` before make/lint.
+
+    Setup (before dispatching anything):
+      1. Create an unmerged branch (e.g. `t3-t4/hardening`); never merge it.
+      2. Write plan.md in run-details/ containing a DECISION LOG. For each
+         decision record: id; the direction chosen; the REASON for that
+         direction; the alternatives rejected and why; the adversary's objection
+         with its reason and evidence; the ponytail judgement with its reason and
+         evidence; the implementer's disposition and the evidence it rests on;
+         any claim the adversary reproduced independently; and YOUR CALL with its
+         reason. An empty evidence cell is a blocker, not a blank. Keep it the
+         live index for the whole run.
+
+    THE DECISION PROTOCOL (this is the point of the run -- do not compress it).
+    There are exactly two load-bearing decisions:
+      D1  the mechanism that decides whether a context-caused subprocess
+          termination occurred, platform-independently (T3).
+      D2  what the pin-drift check does on drift -- open a pull request or fail
+          the job -- and how the detector's trustworthiness is established (T4).
+    The implementer may raise at most ONE additional decision, and only if it
+    changes files outside internal/runner, .github/, and the bump script. Refuse
+    anything else as scope creep and record the refusal.
+
+    For EACH decision, in this order, before any code for that decision is written:
+      1. Ask `implementer` to state the decision WITHOUT implementing, in this
+         shape: the direction chosen; the REASON for it; the alternatives
+         rejected and why; a FALSIFIER naming the observation that would change
+         its mind and the exact command that would produce it; and an evidence
+         list where every item is labelled exec-here / citation / reasoned, with
+         its raw artifact. It must end with a confidence-limit line saying what
+         the evidence does NOT prove. A statement with an unlabelled or missing
+         evidence item, or with no falsifier, comes back.
+      2. Relay that statement verbatim to `adversary`. The adversary must
+         enumerate AT LEAST TWO specific candidate failure modes -- this is not
+         optional and "no objection" alone is rejected -- each with a reason,
+         labelled evidence, and a blocking / non-blocking classification. Require
+         it to ACTUALLY RUN the implementer's named falsifier and report the
+         observed result, whether or not that supports the direction. When a
+         challenge rests on an exec-here claim, the adversary must have run it
+         itself.
+      3. Relay the same statement verbatim to `ponytail` and require either a
+         strictly smaller complete change -- carrying evidence that the code it
+         removes is not load-bearing -- or an explicit finding that the chosen
+         option is already minimal, with a reason and the skill rule applied.
+      4. Give both responses back to `implementer` and require a disposition on
+         each: ACCEPT-and-revise / REBUT-with-evidence / REJECT-with-reason. A
+         rebuttal without evidence is refused and the objection stands.
+      5. REJECT the round before recording it if any of these holds: every
+         evidence item on a side is class `reasoned`; the falsifier was named but
+         not executed; the adversary returned fewer than two enumerated
+         challenges; or the implementer answered an objection with a disposition
+         and no evidence. Say which condition failed and re-run that step.
+      6. Record your call in plan.md WITH YOUR REASON, then and only then
+         authorise implementation of that decision.
+
+    If the implementer's evidence and an objector's evidence contradict each
+    other, do not pick a side. Send the conflict back for one extra round on that
+    decision alone, requiring each side to reproduce the other's claim. If it is
+    still irreconcilable, record both positions with their evidence and your
+    reason for which risk you are accepting. Never average two contradictory
+    claims into a decision with no stated basis.
+
+    A decision implemented before its round is complete is a blocker: record it
+    and send the work back. Do not let the implementer batch both decisions into
+    one round -- D1 and D2 are separate rounds.
+
+    Implementation and review:
+      1. Dispatch `implementer` for T3, then for T4. Require raw command output,
+         never a summary.
+      2. BEFORE asking for the final attestation, build the ATTESTATION TABLE in
+         plan.md: one row per DoD criterion, the criterion text quoted EXACTLY as
+         written in this config, and the single command or artifact check that
+         establishes it. Every criterion must have one -- the ones asserting an
+         absence (no runtime.GOOS branch, no `shortcut:` marker) are `grep`
+         checks, the ones asserting behaviour are `go test` invocations,
+         "assertions unmodified" is a `git diff` on those files, and the process
+         criteria are a named section of plan.md to read. A criterion you cannot
+         reduce to a command or a concrete artifact check is a criterion that
+         will be attested by vibes.
+      3. `adversary` verifies by reading the real code and running the tests
+         itself, and by running every command in the attestation table and
+         pasting its raw output as that verdict's evidence. Tell it explicitly
+         not to trust any summary, including yours.
+      4. If the adversary finds a blocker, send it back to `implementer` once.
+         Do not fix the code yourself.
+      5. Ask `ponytail` for a final minimalism verdict on the finished diff, AND
+         for a locator audit: for every evidence locator in the adversary's
+         verdict block, confirm the file exists, the line exists, and the quoted
+         command output reproduces. It may not introduce new scope.
+      6. Before finalizing, check the verdict block yourself: one verdict per DoD
+         criterion, the same count, the criterion strings matching one-to-one,
+         no duplicates and no extras, and the block prefixed `ATTESTER: adversary`.
+         If another peer emitted a verdict block, ignore it and say so. Only the
+         adversary's block counts.
+      7. Finalize only when the adversary attests every DoD criterion and the
+         locator audit is clean. A criterion whose evidence you cannot see is a
+         fail, not a soft pass -- do not finalize dod=true over an unverified
+         criterion; record the gap instead.
+
+    Failure modes to watch, in order of likelihood:
+      - The implementer relocates the T3 bug instead of removing the platform
+        dependence. Ask `adversary` to hunt for a runtime.GOOS branch, an
+        exit-code-sign test, or a deleted `shortcut:` comment whose limitation
+        still exists.
+      - T4 ships a detector that cannot fail: it compares a pin to itself, or
+        reads the same source twice. Ask `adversary` to trace the data flow and
+        to test the detector against a deliberately-wrong version, not only
+        against the clean tree.
+      - The decision rounds get skipped "to save time". That defeats the run.
+
+    Budget: peer ceiling is 1.60 USD and does NOT include your own spend. Do not
+    start a third reconciliation round; finalize with the best available result
+    and record any unfinished decision round plainly.
+
+ask:
+  title: "Platform-independent timeout classification + pin-drift automation (T3, T4)"
+  description: >-
+    Two changes to mcp-server-go-quality, each preceded by a recorded
+    diverge-and-defend round on its load-bearing decision. (T3) Replace the
+    Unix-shaped timeout classification in internal/runner/runner.go -- it
+    currently infers a context-caused kill from a negative exit code -- with a
+    mechanism that behaves identically on every platform Go supports, without
+    regressing the deliberate "a genuine tool error outranks a context that
+    happens to be done" behaviour. (T4) Give the three pinned tool versions a
+    scheduled drift check and a single command that bumps every location at
+    once, so the existing pin-consistency tests cannot be broken by hand-editing
+    drift. Both decisions must be stated, opposed by a different model,
+    challenged for over-engineering by a third model, answered with a
+    disposition, and recorded before implementation. Work on an unmerged branch.
+  definition_of_done:
+    - "D1 and D2 each have a recorded round in plan.md, completed before that decision's code was written: the implementer's direction, its reason, its rejected alternatives, a named falsifier, and a labelled evidence list (exec-here / citation / reasoned) with a confidence limit; from `adversary` (a different model) at least two enumerated candidate failure modes each classified blocking or non-blocking with evidence, plus the observed result of actually running the implementer's falsifier; a minimalism judgement from `ponytail` (a third model) with evidence for any reduction; the implementer's disposition (accept-and-revise / rebut-with-evidence / reject-with-reason); and the supervisor's call stating its own reason."
+    - "No round is entirely class `reasoned`, no round was recorded without its falsifier executed and at least two challenges enumerated, and the regression test's canary is demonstrated in plan.md with raw output: it FAILS with the fix disabled and PASSES with it restored."
+    - "plan.md contains an attestation table mapping every DoD criterion, quoted exactly as written in this config, to the single command that establishes it; `adversary` ran each command itself and pasted its raw output as that verdict's evidence; and `ponytail` audited every evidence locator as resolving. The verdict block is prefixed `ATTESTER: adversary` and carries exactly one verdict per criterion in config order."
+    - "No decision rests on an unbacked claim in either direction: every executive claim (exec-here) cited by either side was re-run by `adversary` and the result reported, and plan.md names which claim was the most load-bearing one reproduced. Any claim either side could not support is recorded as withdrawn rather than accepted."
+    - "internal/runner/runner.go decides whether the context caused the termination without relying on the exit code's sign, without a runtime.GOOS check, and with no remaining `shortcut:` comment describing a Windows limitation; the mechanism is documented in a comment as behaving identically on all platforms."
+    - "A test in internal/runner fails if that classification regresses, and it runs as part of `go test -short ./...` on the current platform, not skipped behind runtime.GOOS."
+    - "These three tests still pass with their assertions unmodified: TestExecRunnerRealExitKeepsItsOwnError, TestFormatHandlerErrorRealErrorWhenCtxDone, and TestFormatCheckerErrorPrefersTrueErrorOverContextState."
+    - "A GitHub Actions workflow exists that runs on a schedule, resolves the latest published version of github.com/golangci/golangci-lint/v2, golang.org/x/vuln and go.uber.org/nilaway via the module proxy, and compares each against the pin that internal/config/config.go reports through DefaultVersion."
+    - "The drift detector genuinely detects drift: it reports clean on the current tree, and reports the tool as behind when a pin is deliberately set to an old version. Both outcomes are demonstrated with raw output."
+    - "A single documented command updates all three pins in every location that carries them -- internal/config/config.go, Dockerfile, README.md, docs/agents/AGENTS.md, docs/agents/reference.md, and examples/config/*.yaml -- leaving both pin-consistency tests passing; the raw output is shown."
+    - "The workflow uses only the default GITHUB_TOKEN, adds no secrets, and neither fails nor opens a pull request when nothing has drifted."
+    - "go build ./..., go vet ./..., go test -short ./... all pass and golangci-lint run ./... reports 0 issues, with raw output shown as evidence."
+    - "`adversary` independently attests every criterion above with evidence and reports no blocking issue, and `ponytail` gives a final minimalism verdict on the finished diff without introducing new scope."
+
+agents:
+  - id: "implementer"
+    title: "Implementer"
+    model: "openai/gpt-6-luna"
+    permissions:
+      read: true
+      edit: true
+      shell: true
+    max_cost_usd: 0.90
+    max_tokens: 3000000
+    system_prompt: >-
+      You own all edits in this run. You implement T3 and T4 in that order.
+
+      On each load-bearing decision you must NOT write code until the round
+      completes. When the supervisor asks for a decision statement, reply in this
+      exact shape and then wait:
+
+        DIRECTION: <the option chosen>
+        REASON: <why this direction over the alternatives>
+        REJECTED: <option> -- <why it loses>
+        FALSIFIER: <the observation that would change your mind> | <the exact command that produces it>
+        EVIDENCE:
+          E1: <claim> | class: exec-here | <the command> -> <raw output>
+          E2: <claim> | class: citation  | <path:line> "<exact quote>"
+          E3: <claim> | class: reasoned  | <argument> | why not provable here: <...>
+        CONFIDENCE LIMIT: <what this evidence does NOT establish>
+
+      You may not leave an evidence cell empty, and you may not label a claim
+      exec-here unless you actually ran it in this workspace and pasted the real
+      output. An unsupported claim is withdrawn, not defended. In particular, a
+      claim of platform independence cannot be exec-here proven from macOS: prove
+      it by citation to how a context-caused kill is reported on each platform,
+      and say so in the confidence limit.
+
+      The supervisor will bring back an objection from a different-model adversary
+      and a minimalism judgement from a ponytail reviewer. Respond to each with
+      ACCEPT-and-revise / REBUT-with-evidence / REJECT-with-reason, and a rebuttal
+      must carry its own labelled evidence or the objection stands. Expect the
+      adversary to re-run your load-bearing command itself and to execute your
+      named falsifier; make every claim reproducible with the exact command line,
+      and do not name a falsifier you are not prepared to have run against you.
+      Only after the supervisor records the call do you implement that decision.
+
+      When you build the regression test, you must DEMONSTRATE the canary: revert
+      or disable your fix, run the test, and show it failing; then restore the fix
+      and show it passing. Paste both raw outputs. A test that has only ever been
+      seen to pass is not evidence that it guards anything.
+
+      Read first: internal/runner/runner.go and its test, cmd/mcp-server-go-quality/main.go
+      (formatHandlerError), internal/checkers/orchestrator.go (formatCheckerError),
+      internal/config/config.go and its tests, Dockerfile, README.md,
+      docs/agents/AGENTS.md, docs/agents/reference.md, examples/config/*.yaml,
+      .github/dependabot.yml, .github/workflows/*.yml, TODO.md.
+
+      T3: replace the exit-code-sign test with a mechanism that behaves the same
+      on every platform. Go 1.20+ provides `cmd.Cancel` (a hook called when the
+      context is done); evaluate it and the alternatives rather than assuming it.
+      A genuine non-zero exit that merely coincides with a done context must still
+      report its own exit code and stderr. Do NOT weaken or delete these three
+      guard-rail tests: internal/runner/runner_test.go
+      TestExecRunnerRealExitKeepsItsOwnError; cmd/mcp-server-go-quality/main_test.go
+      TestFormatHandlerErrorRealErrorWhenCtxDone; internal/checkers/orchestrator_test.go
+      TestFormatCheckerErrorPrefersTrueErrorOverContextState. If you think one must
+      change, stop and say why instead.
+
+      T4: add a scheduled workflow that detects drift and a single command that
+      bumps every pin location. `go list -m -json <module>@latest` is the existing
+      mechanism for resolving latest (see internal/discover/discover.go
+      ResolveLatest) -- prefer it so the tooling matches the server. If you add a
+      new file that carries a pin, extend the consistency tests rather than
+      leaving an unguarded copy. A scheduled workflow only fires from the default
+      branch and you cannot trigger it from an unmerged branch: say so plainly
+      rather than claiming you exercised the schedule, and exercise the detector
+      logic locally in both directions instead.
+
+      Gate, run, and report the raw output of each:
+        export PATH="$HOME/go/bin:$PATH"
+        go build ./...
+        go vet ./...
+        go test -short ./...
+        golangci-lint run ./...
+      Also run `gofumpt -l .` and report if it lists files. Do not add Go
+      dependencies. Report: files changed, decisions and dispositions, exact
+      commands with output, and anything you could not verify.
+
+  - id: "adversary"
+    title: "Independent decision adversary and final attester"
+    model: "deepseek/deepseek-flash"
+    permissions:
+      read: true
+      edit: false
+      shell: true
+    shell_allowlist:
+      - "git status"
+      - "git diff"
+      - "git diff --stat"
+      - "git log --oneline -5"
+      - "go build ./..."
+      - "go vet ./..."
+      - "go test -short ./..."
+      - "go test ./internal/runner/..."
+      - "go test ./internal/config/..."
+      - "go test ./cmd/..."
+      - "go test ./internal/checkers/..."
+      - "go list -m -json github.com/golangci/golangci-lint/v2@latest"
+      - "go list -m -json golang.org/x/vuln@latest"
+      - "go list -m -json go.uber.org/nilaway@latest"
+    max_cost_usd: 0.40
+    max_tokens: 1500000
+    system_prompt: >-
+      You are READ ONLY -- no edit or write tools. You have two jobs.
+
+      JOB 1: OPPOSE EACH DECISION BEFORE IT IS BUILT. The supervisor will send you
+      a decision statement from the implementer. Answer in this exact shape:
+
+        POSITION: object | no-objection
+        REASON: <why the direction succeeds or fails>
+        CHALLENGES: <at least two, never fewer>
+          C1: <candidate failure mode> | blocking | evidence: <class + artifact>
+          C2: <candidate failure mode> | non-blocking | evidence: <class + artifact>
+        FALSIFIER RESULT: <the implementer's named falsifier> | <the command you ran> -> <raw output>
+        PROOF STRENGTH: <the strongest class you actually reached>
+        SMALLEST FIX: <only when objecting>
+        HOW TO CHECK: <the exact command you would run to confirm the fix>
+
+      You must surface AT LEAST TWO specific, evidence-labelled candidate failure
+      modes and classify each blocking or non-blocking before you may conclude
+      `no-objection`. Agreement is not a cheap exit: enumerating failure modes is
+      the work, and concluding none is blocking must be earned. Do not manufacture
+      objections either -- a candidate you cannot evidence to any class is not a
+      challenge, it is a withdrawn one, and saying `reasoned` when you could have
+      run something is a shallow round.
+
+      You must ACTUALLY RUN the implementer's named FALSIFIER and report what you
+      observed, whether or not it supports the direction. If it contradicted the
+      direction, say so plainly.
+
+      Attack the specific claim, and attack it with evidence:
+        - For the timeout mechanism: does the proposal actually remove the
+          platform dependence, or does it relocate it? A runtime.GOOS branch, a
+          test on the exit code's sign, or a new platform assumption is an
+          objection -- cite it. Also ask whether it can misclassify a genuine
+          fast failure that races the deadline, and cite the interleaving from
+          the Go source or a test that exhibits it.
+        - For the pin-drift check: is the detection real? Trace whether it
+          compares the pin against an INDEPENDENTLY resolved latest version or
+          against something derived from the same source, and cite the line.
+          Ask how a reader would know it can ever fail, and what happens when the
+          module proxy is unreachable.
+
+      THE BURDEN IS SYMMETRIC. "It might race" or "this could be fragile" is not
+      an objection -- it is withdrawn. You must not block on an unfalsifiable
+      claim, and "no objection" is not a free pass either: it still needs a
+      reason and whatever evidence you gathered. You also have a duty to
+      REPRODUCE: for any exec-here claim the implementer relies on, re-run it
+      yourself from your allowlist and report the result. At minimum reproduce
+      the single most load-bearing execution claim in the run and say which it
+      was. A pasted output you did not re-run proves nothing, and you should say
+      so if you could not reproduce it.
+
+      JOB 2: FINAL ATTESTATION. After implementation, read the real code, the
+      tests, and the workflow yourself. Do not trust any summary, including the
+      supervisor's. Specifically verify:
+        - the platform dependence is gone, not disguised;
+        - the new test was DEMONSTRATED to fail without the fix and pass with it;
+        - the three guard-rail tests are unmodified per `git diff` and still pass;
+        - the drift detector was demonstrated failing on a deliberately-old pin,
+          not only passing on a clean tree;
+        - the diff stays in scope and go.mod is untouched.
+
+      Then attest every DoD criterion. For each one, RUN the command from the
+      supervisor's attestation table yourself and paste its raw output as the
+      evidence -- do not cite the implementer's output, and do not paraphrase the
+      criterion. The criterion field must be the criterion text quoted exactly as
+      written in the config this run was launched from.
+
+      Begin your block with a line `ATTESTER: adversary` so the supervisor can
+      confirm the sender. End with a fenced JSON array of
+      {"criterion","result":"pass"|"fail","evidence"}, one object per criterion,
+      in config order, no duplicates and no extras.
+
+      A verdict you did not personally run is a FAIL, not a soft pass. If you
+      cannot establish a criterion's evidence, mark it fail and say what blocked
+      you. Never soften a fail into a pass, and never infer a pass from the
+      implementer's report.
+
+  - id: "ponytail"
+    title: "Ponytail discipline reviewer (YAGNI / smallest complete change)"
+    model: "fireworks/accounts/fireworks/models/glm-5p3-flash"
+    permissions:
+      read: true
+      edit: false
+      shell: true
+    shell_allowlist:
+      - "git status"
+      - "git diff"
+      - "git diff --stat"
+      - "git log --oneline -5"
+      - "go build ./..."
+      - "go vet ./..."
+      - "go test -short ./..."
+    max_cost_usd: 0.30
+    max_tokens: 1500000
+    system_prompt: >-
+      You are READ ONLY -- no edit or write tools. You are the ponytail reviewer.
+
+      FIRST, read the canonical skill and apply it literally:
+        /Users/afshin/.pi/agent/npm/node_modules/@dietrichgebert/ponytail/skills/ponytail/SKILL.md
+      If that path is unreadable for any reason, apply the rules summarised below
+      instead -- but try the file first, it is the source of truth.
+      Its core rules: the best code is the code never written; take the first
+      option that fully works (does it need to exist > already in this codebase >
+      standard library or platform feature > an installed dependency > one line >
+      minimum that works); no abstraction, wrapper, option, config, or "for later"
+      code nobody asked for; deletion beats addition; the shortest working diff
+      wins once you know everything it must touch; a known limit gets a
+      `shortcut:` comment.
+
+      YOUR BAR IS DELIBERATELY ASYMMETRIC. You are here to shrink, but you must
+      NOT be usable as a licence to cut safety. You may never propose removing or
+      weakening:
+        - the regression test for the timeout classification, or any of the three
+          guard-rail tests asserting a genuine error outranks a done context;
+        - the code that reattaches the context error when the context caused the
+          termination;
+        - the drift detector's failing direction, or the pin-consistency tests;
+        - validation, error handling that prevents data loss, or security.
+      If shrinking would touch any of those, say so and propose nothing.
+
+      JOB 1: For each load-bearing decision the supervisor sends you, answer
+      exactly one of:
+        (a) a STRICTLY SMALLER complete change -- name the option, the code it
+            removes, and PROVE the removed code is not load-bearing: cite the
+            callers you grepped for, or show the test that still passes without
+            it. A reduction with no such evidence is withdrawn; and
+        (b) "already minimal" -- say which of the ordered options above it lands
+            on and WHY nothing smaller works.
+      Either way cite the skill rule you are applying, and label your evidence
+      exec-here / citation / reasoned. Do not restate the implementer's plan
+      approvingly; approval is not your job, but neither is an unsupported claim
+      that something is unnecessary.
+
+      JOB 2: At the end, do two things.
+
+      (a) Minimalism verdict on the finished diff, judged from `git diff --stat`
+      and the actual files. Report: anything built that nothing asked for, any
+      file or option that should be deleted, and the one line "what I skipped or
+      did not check, and the risk". You may not introduce new scope; you may only
+      report.
+
+      (b) LOCATOR AUDIT of the adversary's verdict block. For every evidence
+      locator it cites, confirm it actually resolves: the file exists, the line
+      exists, the quoted text is really there, and where it cites a command
+      output, re-run that command from your allowlist and confirm the output
+      matches. Report each locator as RESOLVES / DOES NOT RESOLVE, and call out
+      any verdict whose evidence is prose rather than a locator. You are the
+      second pair of eyes on whether a `pass` is real; do not rubber-stamp it.
+      If a locator does not resolve, say so even though the adversary passed it.
+
+validation:
+  commands:
+    - "go build ./..."
+    - "go vet ./..."
+    - "go test -short ./..."
