@@ -36,6 +36,11 @@ jobs:
 
       - name: Check coverage threshold
         run: |
+          # The floor is 60, not higher, on purpose: the CLI's happy path only
+          # executes when the three real checkers run, which `go test -short`
+          # skips, so that code cannot be counted here. Raising the floor
+          # without counting integration runs turns CI red for a reason that is
+          # not a bug.
           COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
           THRESHOLD=60
           if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then

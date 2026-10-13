@@ -13,19 +13,12 @@ The live backlog. **This is the file to read to find out what is next.**
 
 ## Open
 
-### T5 — Coverage gate and badge
-CI enforces a **60%** coverage floor and prints the number, but the README has no
-coverage badge, so the gate is invisible. Current measured coverage is **66.9%**
-(the new output-schema and runner tests raised it from ~65%). Raising the floor
-toward 80% would need new tests first.
-
-Decide: keep 60%, raise it, and whether to publish a badge.
-
 ### T7 — Listing and example polish
 Carried over from the deleted repo-polish plan, plus one found in this session:
 
-- `glama.json` has no icon and there is no 512x512 `assets/logo.png`; the README
-  uses `project-image-01.png` directly.
+- ~~`glama.json` has no icon.~~ Added: `assets/logo.jpeg` (1024x1024) is the
+  listing icon and the README header. `project-image-01.png` is unreferenced and
+  can be deleted.
 - ~~No `examples/claude-code/`.~~ Added: registration plus the CLI alternative,
   so the example covers both ways of using the project.
 - ~~`examples/github-actions/quality.yml` reads `.result.content[0].text`.~~
