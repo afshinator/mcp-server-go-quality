@@ -210,6 +210,12 @@ func TestIntegrationRunAllChecks(t *testing.T) {
 // (file, line) left 64 of them tied and the output depended on tool emission
 // order. The same input in a different sequence must sort to the same output.
 func TestRunAllChecksOrderIsTotal(t *testing.T) {
+	// Two diagnostics that are identical in every key except `Error`: the one
+	// pair the comparator used to leave unspecified, reachable when the same
+	// tool is selected twice.
+	errA := diagnostic.Diagnostic{Tool: toolname.Govulncheck, File: "", Line: 0, Severity: "", Message: "", Error: "timed out after 5m0s"}
+	errB := diagnostic.Diagnostic{Tool: toolname.Govulncheck, File: "", Line: 0, Severity: "", Message: "", Error: "exit code 1"}
+
 	mk := func(msg, tool string) diagnostic.Diagnostic {
 		return diagnostic.Diagnostic{Tool: tool, File: "", Line: 0, Severity: "error", Message: msg}
 	}
@@ -217,6 +223,7 @@ func TestRunAllChecksOrderIsTotal(t *testing.T) {
 		mk("c", toolname.Govulncheck), mk("a", toolname.Govulncheck),
 		mk("b", toolname.Nilaway), mk("a", toolname.GolangciLint),
 		mk("b", toolname.Govulncheck), mk("a", toolname.Govulncheck),
+		errA, errB,
 	}
 
 	order := func(diags []diagnostic.Diagnostic) []string {
@@ -224,7 +231,9 @@ func TestRunAllChecksOrderIsTotal(t *testing.T) {
 		got := RunAllChecks(context.Background(), &mockRunner{outputs: map[string][]byte{}}, []Checker{h}, "/p", time.Second)
 		out := make([]string, 0, len(got))
 		for _, d := range got {
-			out = append(out, d.Tool+"/"+d.Message)
+			// Key on Error too: two diagnostics can be identical in every other
+			// field and differ only in the failure they report.
+			out = append(out, d.Tool+"/"+d.Message+"/"+d.Error)
 		}
 		return out
 	}
@@ -234,7 +243,7 @@ func TestRunAllChecksOrderIsTotal(t *testing.T) {
 		t.Fatalf("got %d diagnostics, want %d", len(want), len(base))
 	}
 	// every permutation of an all-tied set must produce the same order
-	for _, perm := range [][]int{{5, 4, 3, 2, 1, 0}, {2, 0, 4, 1, 5, 3}, {1, 3, 5, 0, 2, 4}} {
+	for _, perm := range [][]int{{7, 6, 5, 4, 3, 2, 1, 0}, {2, 6, 0, 4, 1, 7, 5, 3}, {1, 7, 3, 6, 5, 0, 2, 4}} {
 		shuffled := make([]diagnostic.Diagnostic, 0, len(base))
 		for _, i := range perm {
 			shuffled = append(shuffled, base[i])

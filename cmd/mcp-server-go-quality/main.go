@@ -288,11 +288,8 @@ func makeInstallHandler(cfg config.Config, binDir string, versionCache *discover
 	}
 }
 
-// DiagnosticsResponse is the result envelope returned by the check tools. The
-// MCP tools spec requires structuredContent and outputSchema to be a JSON
-// object, so the flat Diagnostic[] is nested under "diagnostics".
 // diagnosticsOutputSchema declares the output schema for the check tools,
-// derived from DiagnosticsResponse. The generator infers json.RawMessage
+// derived from diagnostic.Response. The generator infers json.RawMessage
 // (Diagnostic.Native) as a byte array, so native is widened to any JSON value.
 func diagnosticsOutputSchema() mcp.ToolOption {
 	return func(t *mcp.Tool) {

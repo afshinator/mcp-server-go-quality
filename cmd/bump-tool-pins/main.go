@@ -9,6 +9,7 @@ import (
 
 	"github.com/afshinator/mcp-server-go-quality/internal/config"
 	"github.com/afshinator/mcp-server-go-quality/internal/discover"
+	"github.com/afshinator/mcp-server-go-quality/internal/toolname"
 )
 
 type toolPin struct {
@@ -18,9 +19,9 @@ type toolPin struct {
 }
 
 var toolPins = []toolPin{
-	{name: "golangci-lint", module: "github.com/golangci/golangci-lint/v2", version: config.GolangciLintVersion},
-	{name: "govulncheck", module: "golang.org/x/vuln", version: config.GovulncheckVersion},
-	{name: "nilaway", module: "go.uber.org/nilaway", version: config.NilawayVersion},
+	{name: toolname.GolangciLint, module: toolname.ModulePath(toolname.GolangciLint), version: config.GolangciLintVersion},
+	{name: toolname.Govulncheck, module: toolname.ModulePath(toolname.Govulncheck), version: config.GovulncheckVersion},
+	{name: toolname.Nilaway, module: toolname.ModulePath(toolname.Nilaway), version: config.NilawayVersion},
 }
 
 var pinFiles = map[string][]string{

@@ -24,6 +24,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -221,6 +222,12 @@ func loadConfig(configPath string) (config.Config, error) {
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
+	// The CLI never writes progress to stdout. Make that hold for anything the
+	// shared packages log too, and drop the log package's timestamp so stderr is
+	// consistent with the `go-quality: ` prefix used below.
+	log.SetOutput(stderr)
+	log.SetFlags(0)
+
 	opts, err := parseFlags(args, stderr)
 	if err != nil {
 		if err == flag.ErrHelp {
@@ -230,7 +237,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return exitFailure
 	}
 	if opts.showVersion {
-		warn(stdout, "%s\n", version.String())
+		if _, err := fmt.Fprintln(stdout, version.String()); err != nil {
+			warn(stderr, "go-quality: writing version: %v\n", err)
+			return exitFailure
+		}
 		return exitOK
 	}
 

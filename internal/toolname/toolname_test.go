@@ -60,3 +60,45 @@ func TestInstallPath(t *testing.T) {
 		})
 	}
 }
+
+func TestModulePath(t *testing.T) {
+	tests := []struct {
+		name string
+		want string
+	}{
+		{GolangciLint, "github.com/golangci/golangci-lint/v2"},
+		{Govulncheck, "golang.org/x/vuln"},
+		{Nilaway, "go.uber.org/nilaway"},
+	}
+	for _, tc := range tests {
+		if got := ModulePath(tc.name); got != tc.want {
+			t.Errorf("ModulePath(%q) = %q, want %q", tc.name, got, tc.want)
+		}
+		if ModulePath("nope") != "" {
+			t.Error("ModulePath(unknown) should be empty")
+		}
+	}
+	// InstallPath and ModulePath must stay in lockstep: the installer needs both
+	// for every tool.
+	for _, name := range All() {
+		if InstallPath(name) == "" || ModulePath(name) == "" {
+			t.Errorf("tool %q is missing an InstallPath or ModulePath", name)
+		}
+	}
+}
+
+func TestResolveDedupesAndValidates(t *testing.T) {
+	got, err := Resolve([]string{GolangciLint, GolangciLint, Nilaway})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0] != GolangciLint || got[1] != Nilaway {
+		t.Errorf("Resolve with a duplicate = %v, want %v", got, []string{GolangciLint, Nilaway})
+	}
+	if _, err := Resolve([]string{"nope"}); err == nil {
+		t.Error("expected an error for an unknown tool")
+	}
+	if got, err := Resolve(nil); err != nil || len(got) != len(All()) {
+		t.Errorf("Resolve(nil) = %v (%v), want all tools", got, err)
+	}
+}

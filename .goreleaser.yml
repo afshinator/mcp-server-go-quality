@@ -2,7 +2,8 @@
 version: 2
 
 builds:
-  - env:
+  - id: mcp-server
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
@@ -12,6 +13,17 @@ builds:
       - amd64
       - arm64
     main: ./cmd/mcp-server-go-quality/
+  - id: go-quality-cli
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    main: ./cmd/go-quality/
 
 archives:
   - format: tar.gz

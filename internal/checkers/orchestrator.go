@@ -93,6 +93,7 @@ func RunAllChecks(
 			cmp.Compare(a.Tool, b.Tool),
 			cmp.Compare(a.Severity, b.Severity),
 			cmp.Compare(a.Message, b.Message),
+			cmp.Compare(a.Error, b.Error),
 			bytes.Compare(a.Native, b.Native),
 		)
 	})

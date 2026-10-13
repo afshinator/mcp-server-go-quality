@@ -23,16 +23,26 @@ func IsValid(name string) bool {
 // Resolve validates a requested tool selection. An empty selection means every
 // tool. Both entrypoints resolve their selection through here so a name that is
 // accepted by one is accepted by the other.
+// Resolve validates a requested tool selection. An empty selection means every
+// tool. Duplicates are removed so a repeated name does not run the same checker
+// twice.
 func Resolve(names []string) ([]string, error) {
 	if len(names) == 0 {
 		return All(), nil
 	}
+	seen := make(map[string]bool, len(names))
+	out := make([]string, 0, len(names))
 	for _, n := range names {
 		if !IsValid(n) {
 			return nil, fmt.Errorf("unknown tool %q. valid values: %s", n, strings.Join(All(), ", "))
 		}
+		if seen[n] {
+			continue
+		}
+		seen[n] = true
+		out = append(out, n)
 	}
-	return names, nil
+	return out, nil
 }
 
 func All() []string {
