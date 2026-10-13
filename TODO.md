@@ -55,18 +55,6 @@ Carried over from the deleted repo-polish plan, plus one found in this session:
   Resolved with the CLI: the example now calls `go-quality --json`, which is
   simpler than piping JSON-RPC through stdin and exercises the same envelope.
 
-### T8 — The weekly pin-drift job will cry wolf on nilaway
-nilaway publishes no tags, so its pin is a commit pseudo-version and
-`go list -m ...@latest` resolves to a **different value on every upstream
-commit**. The scheduled `pin-drift` job therefore goes red most weeks for a
-reason nobody can act on, which is exactly how a real drift signal gets ignored.
-
-This was raised and accepted as a known risk during the run that added the
-workflow. Decide: exclude nilaway from the latest-comparison (it is pinned to a
-commit by intent), compare it only against an explicitly chosen upstream
-timestamp, or demote it to a non-failing report. Any option must keep the
-failing direction for golangci-lint and govulncheck, which do have releases.
-
 ### T9 — The pin-location list exists in three places
 A file that carries a pin is known to
 `internal/config/config_test.go` (the consistency test's file list),
@@ -76,7 +64,9 @@ file that gains a pin would be neither bumped nor guarded — the exact drift cl
 T4 set out to remove, one level up.
 
 Either derive one list from a single source both consumers read, or have the
-consistency test assert that `pinFiles` and its own list are identical.
+consistency test assert that `pinFiles` and its own list are identical. Note the
+CLI work already moved the *module paths* to `toolname.ModulePath`, so this is
+about the file list only.
 
 ### T10 — `golangci-lint` is outside the read-only verification vocabulary
 Not a code defect, a task-config constraint worth remembering. The harness
@@ -154,6 +144,16 @@ vocabulary if a future run needs lint independently attested.
     `rank == limit` fails `TestTripsWarningTripsOnErrorSeverity`, which is the case
     that would otherwise let a CVE through `--fail-on=warning`.
   - A bad flag exits 2 with stdout empty, so `--json | jq` cannot be fed garbage.
+- **T8** — nilaway publishes no tags, so its pin is a commit pseudo-version and
+  `go list -m ...@latest` resolves to a **different value on every upstream
+  commit**. The scheduled `pin-drift` job therefore goes red most weeks for a
+  reason nobody can act on, which is exactly how a real drift signal gets ignored.
+
+  This was raised and accepted as a known risk during the run that added the
+  workflow. Decide: exclude nilaway from the latest-comparison (it is pinned to a
+  commit by intent), compare it only against an explicitly chosen upstream
+  timestamp, or demote it to a non-failing report. Any option must keep the
+  failing direction for golangci-lint and govulncheck, which do have releases.
 - **Review** — 12 findings from an independent adversarial review closed
   (R1–R12); test gaps for the install-tools payload, the `native` schema
   widening, and assertion strength all addressed.
