@@ -56,6 +56,26 @@ func DefaultVersion(toolName string) string {
 	}
 }
 
+// PinLocations maps each file that carries a tool pin to the tools pinned in
+// it, relative to the repository root. It is the single source of truth for the
+// pin surface: cmd/bump-tool-pins rewrites exactly these files, and the
+// consistency tests assert every one of them agrees with DefaultVersion.
+//
+// A file that gains a pin must be added here, or it will be neither bumped nor
+// guarded.
+var PinLocations = map[string][]string{
+	"internal/config/config.go":          {"golangci-lint", "govulncheck", "nilaway"},
+	"Dockerfile":                         {"golangci-lint", "govulncheck", "nilaway"},
+	"README.md":                          {"golangci-lint", "govulncheck", "nilaway"},
+	"docs/agents/AGENTS.md":              {"golangci-lint", "govulncheck", "nilaway"},
+	"docs/agents/reference.md":           {"golangci-lint", "govulncheck", "nilaway"},
+	"examples/config/ci.yaml":            {"golangci-lint", "govulncheck", "nilaway"},
+	"examples/config/dev-iteration.yaml": {"golangci-lint", "govulncheck", "nilaway"},
+	"examples/config/monorepo.yaml":      {"golangci-lint", "govulncheck", "nilaway"},
+	"Makefile":                           {"golangci-lint"},
+	".github/workflows/lint.yml":         {"golangci-lint"},
+}
+
 func ReservedFlags(toolName string) []string {
 	return reservedByTool[toolName]
 }

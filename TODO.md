@@ -38,12 +38,6 @@ toward 80% would need new tests first.
 
 Decide: keep 60%, raise it, and whether to publish a badge.
 
-### T6 — Declared Go version vs nilaway's requirement
-`go.mod` declares `go 1.25.9`, but the pinned nilaway requires **Go >= 1.26.0** to
-build, so `install_tools` silently triggers `GOTOOLCHAIN=auto` and downloads a
-second toolchain. That works, but it is invisible and costs a download on first
-use. Either bump the declared toolchain to 1.26 or document the switch.
-
 ### T7 — Listing and example polish
 Carried over from the deleted repo-polish plan, plus one found in this session:
 
@@ -54,19 +48,6 @@ Carried over from the deleted repo-polish plan, plus one found in this session:
 - ~~`examples/github-actions/quality.yml` reads `.result.content[0].text`.~~
   Resolved with the CLI: the example now calls `go-quality --json`, which is
   simpler than piping JSON-RPC through stdin and exercises the same envelope.
-
-### T9 — The pin-location list exists in three places
-A file that carries a pin is known to
-`internal/config/config_test.go` (the consistency test's file list),
-`cmd/bump-tool-pins/main.go` (`pinFiles`), and the docs themselves. `make
-bump-tool-pins` and the consistency test each read their own copy, so a **new**
-file that gains a pin would be neither bumped nor guarded — the exact drift class
-T4 set out to remove, one level up.
-
-Either derive one list from a single source both consumers read, or have the
-consistency test assert that `pinFiles` and its own list are identical. Note the
-CLI work already moved the *module paths* to `toolname.ModulePath`, so this is
-about the file list only.
 
 ### T10 — `golangci-lint` is outside the read-only verification vocabulary
 Not a code defect, a task-config constraint worth remembering. The harness
@@ -123,37 +104,20 @@ vocabulary if a future run needs lint independently attested.
   `--fail-on=error`. Gradation would mean a level above `error`, which is a contract
   change and was deliberately deferred — `--tools=govulncheck` already covers the
   "gate on security only" case without touching the schema.
-- **T12** — `--fail-on=none` semantics pinned. It suppresses the **findings** exit
-  (1) only; a tool execution failure (`error` field present) forces exit 2
-  unconditionally, including under `none`. Verified by
-  `TestExitCodeToolFailureOutranksEverything`, which asserts the failure outranks
-  every tier of `--fail-on`.
-- **CLI** — `go-quality` shipped as a second entrypoint over the same engine.
-  `cmd/mcp-server-go-quality` went 454 → 328 lines; the shared glue moved to
-  `internal/preflight` (`BuildHandlers`, `EnsureToolsAvailable`, install types),
-  `toolname.ModulePath` joined `InstallPath`, `formatHandlerError` was deleted in
-  favour of the byte-identical `checkers.FormatCheckerError`, and
-  `DiagnosticResponse` became `diagnostic.Response` so both entrypoints marshal one
-  type. 128 lines of duplicated tests went with it.
-
-  Verified rather than asserted:
-  - `--json` output is **byte-identical** to the MCP `structuredContent` — proven
-    against real output, two MCP runs and one CLI run, all
-    `sha256 aa46c7137efc2d4b`, 36,282 bytes.
-  - The `--fail-on` threshold is a comparison, not equality: reverting it to
-    `rank == limit` fails `TestTripsWarningTripsOnErrorSeverity`, which is the case
-    that would otherwise let a CVE through `--fail-on=warning`.
-  - A bad flag exits 2 with stdout empty, so `--json | jq` cannot be fed garbage.
-- **T8** — nilaway publishes no tags, so its pin is a commit pseudo-version and
-  `go list -m ...@latest` resolves to a **different value on every upstream
-  commit**. The scheduled `pin-drift` job therefore goes red most weeks for a
-  reason nobody can act on, which is exactly how a real drift signal gets ignored.
-
-  This was raised and accepted as a known risk during the run that added the
-  workflow. Decide: exclude nilaway from the latest-comparison (it is pinned to a
-  commit by intent), compare it only against an explicitly chosen upstream
-  timestamp, or demote it to a non-failing report. Any option must keep the
-  failing direction for golangci-lint and govulncheck, which do have releases.
+- **T6** — Resolved by bumping the declared toolchain to `go 1.26.0`, which is what
+  the pinned nilaway needs to build. That removes the silent `GOTOOLCHAIN=auto`
+  download mid-`install_tools`: the toolchain is declared, so CI and builds fetch it
+  once, up front. All four workflows, the example workflow and the README
+  prerequisite now agree on 1.26. Verified by building and running the full suite
+  under 1.26.0.
+- **T9** — A file that carries a pin is now known to exactly one place:
+  `config.PinLocations`, which maps each file to the tools pinned in it.
+  `cmd/bump-tool-pins` reads it instead of its own copy, and both consistency
+  tests derive their file lists from it. Previously the bump tool covered 10 files
+  while the tests covered 7 and 9, so `Makefile` and `lint.yml` were bumped but
+  never all-tool-checked, and `config.go` — the source of truth — was in neither
+  test list. Verified by round trip: staling every location and running
+  `make bump-tool-pins` returns the tree byte-identical to clean.
 - **Review** — 12 findings from an independent adversarial review closed
   (R1–R12); test gaps for the install-tools payload, the `native` schema
   widening, and assertion strength all addressed.
@@ -194,5 +158,5 @@ vocabulary if a future run needs lint independently attested.
   (`TestPinnedVersionsAreCurrent`) that skips under `-short`, so the ordinary
   suite stays hermetic. `make bump-tool-pins` rewrites every pin location at
   once. Verified by round trip: staling all ten locations and running the one
-  command returns the tree byte-identical to clean. The residual noise problem is
-  T8.
+  command returns the tree byte-identical to clean. The nilaway noise problem that remained is
+  fixed as T8.

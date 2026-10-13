@@ -24,18 +24,7 @@ var toolPins = []toolPin{
 	{name: toolname.Nilaway, module: toolname.ModulePath(toolname.Nilaway), version: config.NilawayVersion},
 }
 
-var pinFiles = map[string][]string{
-	"internal/config/config.go":          {"golangci-lint", "govulncheck", "nilaway"},
-	"Dockerfile":                         {"golangci-lint", "govulncheck", "nilaway"},
-	"README.md":                          {"golangci-lint", "govulncheck", "nilaway"},
-	"docs/agents/AGENTS.md":              {"golangci-lint", "govulncheck", "nilaway"},
-	"docs/agents/reference.md":           {"golangci-lint", "govulncheck", "nilaway"},
-	"examples/config/ci.yaml":            {"golangci-lint", "govulncheck", "nilaway"},
-	"examples/config/dev-iteration.yaml": {"golangci-lint", "govulncheck", "nilaway"},
-	"examples/config/monorepo.yaml":      {"golangci-lint", "govulncheck", "nilaway"},
-	"Makefile":                           {"golangci-lint"},
-	".github/workflows/lint.yml":         {"golangci-lint"},
-}
+var pinFiles = config.PinLocations
 
 func main() {
 	if err := bump(); err != nil {

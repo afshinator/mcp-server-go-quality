@@ -5,12 +5,16 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/afshinator/mcp-server-go-quality/internal/discover"
 )
+
+// repoRoot is the module root as seen from this package's test files.
+const repoRoot = "../.."
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := Default()
@@ -255,17 +259,11 @@ func TestResolveTimeout(t *testing.T) {
 // TestGolangciLintVersionIsConsistent guards against the pinned golangci-lint
 // version drifting between the Go default and the build/CI/docs copies of it.
 func TestGolangciLintVersionIsConsistent(t *testing.T) {
-	files := []string{
-		"../../Makefile",
-		"../../Dockerfile",
-		"../../README.md",
-		"../../.github/workflows/lint.yml",
-		"../../docs/agents/AGENTS.md",
-		"../../docs/agents/reference.md",
-		"../../examples/config/ci.yaml",
-		"../../examples/config/dev-iteration.yaml",
-		"../../examples/config/monorepo.yaml",
+	var files []string
+	for rel := range PinLocations {
+		files = append(files, filepath.Join(repoRoot, rel))
 	}
+	sort.Strings(files)
 	re := regexp.MustCompile(`v2\.\d+\.\d+`)
 	for _, f := range files {
 		body, err := os.ReadFile(filepath.Clean(f))
@@ -289,35 +287,41 @@ func TestGolangciLintVersionIsConsistent(t *testing.T) {
 // by the Dockerfile, so drift there ships an image whose pre-baked tools the
 // server then reinstalls on every start.
 func TestPinnedVersionsAreConsistent(t *testing.T) {
-	files := []string{
-		"../../Dockerfile",
-		"../../README.md",
-		"../../docs/agents/AGENTS.md",
-		"../../docs/agents/reference.md",
-		"../../examples/config/ci.yaml",
-		"../../examples/config/dev-iteration.yaml",
-		"../../examples/config/monorepo.yaml",
+	type pinFile struct {
+		path string
+		tool string
 	}
+	var files []pinFile
+	for rel, toolNames := range PinLocations {
+		for _, tool := range toolNames {
+			files = append(files, pinFile{path: filepath.Join(repoRoot, rel), tool: tool})
+		}
+	}
+	sort.Slice(files, func(i, j int) bool {
+		if files[i].path != files[j].path {
+			return files[i].path < files[j].path
+		}
+		return files[i].tool < files[j].tool
+	})
 	pins := map[string]string{
 		"golangci-lint": GolangciLintVersion,
 		"govulncheck":   GovulncheckVersion,
 		"nilaway":       NilawayVersion,
 	}
-	for _, f := range files {
-		body, err := os.ReadFile(filepath.Clean(f))
+	for _, pf := range files {
+		body, err := os.ReadFile(filepath.Clean(pf.path))
 		if err != nil {
-			t.Fatalf("reading %s: %v", f, err)
+			t.Fatalf("reading %s: %v", pf.path, err)
 		}
 		text := string(body)
-		for name, version := range pins {
-			if !strings.Contains(text, version) {
-				t.Errorf("%s does not reference the %s pin %s", f, name, version)
-			}
+		version := pins[pf.tool]
+		if !strings.Contains(text, version) {
+			t.Errorf("%s does not reference the %s pin %s", pf.path, pf.tool, version)
 		}
 	}
 	// The Dockerfile pre-bakes the tools; an unpinned install there ships an
 	// image the server immediately repairs on first use.
-	dockerfile, err := os.ReadFile("../../Dockerfile")
+	dockerfile, err := os.ReadFile(filepath.Join(repoRoot, "Dockerfile"))
 	if err != nil {
 		t.Fatalf("reading Dockerfile: %v", err)
 	}

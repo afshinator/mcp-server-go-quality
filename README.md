@@ -195,7 +195,7 @@ mcp-server-go-quality --config ./my-config.yaml
 
 The server starts in stdio mode — connect any MCP client or test it interactively by piping JSON-RPC. Tools auto-install into `$GOBIN` on first use.
 
-**Prerequisites:** Go 1.25+ on `PATH` (the toolchain directive in `go.mod` downloads the exact required version automatically).
+**Prerequisites:** Go 1.26+ on `PATH` (the toolchain directive in `go.mod` downloads the exact required version automatically).
 
 ---
 
