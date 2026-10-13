@@ -2,19 +2,17 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
-	"time"
 
 	"github.com/afshinator/mcp-server-go-quality/internal/checkers"
 	"github.com/afshinator/mcp-server-go-quality/internal/config"
 	"github.com/afshinator/mcp-server-go-quality/internal/diagnostic"
 	"github.com/afshinator/mcp-server-go-quality/internal/discover"
+	"github.com/afshinator/mcp-server-go-quality/internal/preflight"
 	"github.com/afshinator/mcp-server-go-quality/internal/root"
 	"github.com/afshinator/mcp-server-go-quality/internal/runner"
 	"github.com/afshinator/mcp-server-go-quality/internal/toolname"
@@ -144,7 +142,7 @@ func registerTools(s *mcpserver.MCPServer, cfg config.Config, binDir string, ver
 		mcp.WithIdempotentHintAnnotation(true),
 		mcp.WithOpenWorldHintAnnotation(true),
 		mcp.WithArray("tools", mcp.Description("Subset of tools to install. Valid values: golangci-lint, govulncheck, nilaway. Omit to install all three.")),
-		mcp.WithOutputSchema[InstallResult](),
+		mcp.WithOutputSchema[preflight.InstallResult](),
 	), makeInstallHandler(cfg, binDir, versionCache))
 }
 
@@ -177,63 +175,6 @@ func resolveRequestedTools(request mcp.CallToolRequest) ([]string, error) {
 	return tools, nil
 }
 
-func buildHandlers(toolNames []string, cfg config.Config, projectRoot string, binDir string) []checkers.Checker {
-	workspaceModules, _ := root.WorkspaceModules(projectRoot)
-
-	var handlers []checkers.Checker
-	for _, name := range toolNames {
-		switch name {
-		case toolname.GolangciLint:
-			h := checkers.NewGolangciLintHandler(binDir)
-			if tc, ok := cfg.Tools[name]; ok {
-				h.ExtraArgs = tc.ExtraArgs
-			}
-			handlers = append(handlers, h)
-		case toolname.Govulncheck:
-			h := &checkers.GovulncheckHandler{
-				BinDir:           binDir,
-				WorkspaceModules: workspaceModules,
-			}
-			if tc, ok := cfg.Tools[name]; ok {
-				h.ExtraArgs = tc.ExtraArgs
-			}
-			handlers = append(handlers, h)
-		case toolname.Nilaway:
-			var includePkgs string
-			if len(workspaceModules) > 0 {
-				includePkgs = strings.Join(workspaceModules, ",")
-			}
-			h := &checkers.NilawayHandler{
-				BinDir:      binDir,
-				IncludePkgs: includePkgs,
-			}
-			if tc, ok := cfg.Tools[name]; ok {
-				h.ExtraArgs = tc.ExtraArgs
-			}
-			handlers = append(handlers, h)
-		}
-	}
-	return handlers
-}
-
-func ensureToolsAvailable(ctx context.Context, toolNames []string, cfg config.Config, binDir string, versionCache *discover.Cache) error {
-	for _, name := range toolNames {
-		tc, ok := cfg.Tools[name]
-		if !ok {
-			return fmt.Errorf("tool %q not found in config (this is an internal error — report it)", name)
-		}
-		result, err := discover.EnsureInstalled(ctx, versionCache, binDir, name,
-			resolveModulePath(name), toolname.InstallPath(name), tc.Version)
-		if err != nil {
-			return fmt.Errorf("installing %s: %w", name, err)
-		}
-		if result.NewlyInstalled {
-			log.Printf("[pre-flight] installed %s@%s", name, result.Version)
-		}
-	}
-	return nil
-}
-
 func makeRunAllHandler(cfg config.Config, binDir string, versionCache *discover.Cache) func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		projectPath, err := resolveProjectPath(req)
@@ -251,12 +192,12 @@ func makeRunAllHandler(cfg config.Config, binDir string, versionCache *discover.
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		if err := ensureToolsAvailable(ctx, toolNames, cfg, binDir, versionCache); err != nil {
+		if err := preflight.EnsureToolsAvailable(ctx, toolNames, cfg, binDir, versionCache); err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
 		r := &runner.ExecRunner{Dir: projectRoot}
-		handlers := buildHandlers(toolNames, cfg, projectRoot, binDir)
+		handlers := preflight.BuildHandlers(toolNames, cfg, projectRoot, binDir)
 
 		diags := checkers.RunAllChecks(ctx, r, handlers, projectRoot, cfg.ResolveTimeout())
 
@@ -276,7 +217,7 @@ func makeSingleHandler(toolName string, cfg config.Config, binDir string, versio
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		if err := ensureToolsAvailable(ctx, []string{toolName}, cfg, binDir, versionCache); err != nil {
+		if err := preflight.EnsureToolsAvailable(ctx, []string{toolName}, cfg, binDir, versionCache); err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
@@ -285,7 +226,7 @@ func makeSingleHandler(toolName string, cfg config.Config, binDir string, versio
 		defer cancel()
 
 		r := &runner.ExecRunner{Dir: projectRoot}
-		handlers := buildHandlers([]string{toolName}, cfg, projectRoot, binDir)
+		handlers := preflight.BuildHandlers([]string{toolName}, cfg, projectRoot, binDir)
 
 		var (
 			diags  []diagnostic.Diagnostic
@@ -299,7 +240,7 @@ func makeSingleHandler(toolName string, cfg config.Config, binDir string, versio
 		if runErr != nil {
 			diags = []diagnostic.Diagnostic{{
 				Tool:  toolName,
-				Error: formatHandlerError(toolCtx, timeout, runErr),
+				Error: checkers.FormatCheckerError(toolCtx, timeout, runErr),
 			}}
 		}
 
@@ -314,7 +255,7 @@ func makeInstallHandler(cfg config.Config, binDir string, versionCache *discover
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		response := InstallResult{}
+		response := preflight.InstallResult{}
 		for _, name := range toolNames {
 			versionStr := "latest"
 			if tc, ok := cfg.Tools[name]; ok && tc.Version != "" {
@@ -323,10 +264,10 @@ func makeInstallHandler(cfg config.Config, binDir string, versionCache *discover
 
 			versionCache.InvalidateResolved(name) // install_tools always forces fresh resolution
 			instResult, err := discover.EnsureInstalled(ctx, versionCache, binDir, name,
-				resolveModulePath(name), toolname.InstallPath(name), versionStr)
+				toolname.ModulePath(name), toolname.InstallPath(name), versionStr)
 			installCmd := "go install " + toolname.InstallPath(name) + "@" + versionStr
 			if err != nil {
-				response.Failed = append(response.Failed, FailedEntry{
+				response.Failed = append(response.Failed, preflight.FailedEntry{
 					Tool:    name,
 					Version: versionStr,
 					Command: installCmd,
@@ -335,7 +276,7 @@ func makeInstallHandler(cfg config.Config, binDir string, versionCache *discover
 				continue
 			}
 
-			entry := ToolEntry{Tool: name, Version: instResult.Version}
+			entry := preflight.ToolEntry{Tool: name, Version: instResult.Version}
 			if instResult.NewlyInstalled {
 				response.Installed = append(response.Installed, entry)
 			} else {
@@ -347,70 +288,15 @@ func makeInstallHandler(cfg config.Config, binDir string, versionCache *discover
 	}
 }
 
-type ToolEntry struct {
-	Tool    string `json:"tool"`
-	Version string `json:"version"`
-}
-
-type FailedEntry struct {
-	Tool    string `json:"tool"`
-	Version string `json:"version"`
-	Command string `json:"command"`
-	Stderr  string `json:"stderr"`
-}
-
-type InstallResult struct {
-	Installed      []ToolEntry   `json:"installed"`
-	AlreadyPresent []ToolEntry   `json:"already_present"`
-	Failed         []FailedEntry `json:"failed"`
-}
-
-func resolveModulePath(toolName string) string {
-	switch toolName {
-	case toolname.GolangciLint:
-		return "github.com/golangci/golangci-lint/v2"
-	case toolname.Govulncheck:
-		return "golang.org/x/vuln"
-	case toolname.Nilaway:
-		return "go.uber.org/nilaway"
-	default:
-		return ""
-	}
-}
-
-func formatHandlerError(ctx context.Context, timeout time.Duration, err error) string {
-	message := ""
-	if errors.Is(err, context.DeadlineExceeded) {
-		message = fmt.Sprintf("timed out after %s", timeout)
-	} else if errors.Is(err, context.Canceled) {
-		message = "cancelled"
-	} else {
-		return err.Error()
-	}
-
-	if exitCode, ok := runner.ExitCode(err); ok {
-		stderr, _ := runner.Stderr(err)
-		if stderr != "" {
-			return fmt.Sprintf("%s (exit code %d; stderr: %s)", message, exitCode, strings.TrimSpace(stderr))
-		}
-		return fmt.Sprintf("%s (exit code %d)", message, exitCode)
-	}
-	return message
-}
-
 // DiagnosticsResponse is the result envelope returned by the check tools. The
 // MCP tools spec requires structuredContent and outputSchema to be a JSON
 // object, so the flat Diagnostic[] is nested under "diagnostics".
-type DiagnosticsResponse struct {
-	Diagnostics []diagnostic.Diagnostic `json:"diagnostics"`
-}
-
 // diagnosticsOutputSchema declares the output schema for the check tools,
 // derived from DiagnosticsResponse. The generator infers json.RawMessage
 // (Diagnostic.Native) as a byte array, so native is widened to any JSON value.
 func diagnosticsOutputSchema() mcp.ToolOption {
 	return func(t *mcp.Tool) {
-		mcp.WithOutputSchema[DiagnosticsResponse]()(t)
+		mcp.WithOutputSchema[diagnostic.Response]()(t)
 		diag, _ := t.OutputSchema.Properties["diagnostics"].(map[string]any)
 		items, _ := diag["items"].(map[string]any)
 		props, ok := items["properties"].(map[string]any)
@@ -426,27 +312,15 @@ func diagnosticsOutputSchema() mcp.ToolOption {
 }
 
 func marshalDiagnostics(diags []diagnostic.Diagnostic) (*mcp.CallToolResult, error) {
-	if diags == nil {
-		diags = []diagnostic.Diagnostic{}
-	}
-	result, err := mcp.NewToolResultJSON(DiagnosticsResponse{Diagnostics: diags})
+	result, err := mcp.NewToolResultJSON(diagnostic.NewResponse(diags))
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("marshaling results: %v", err)), nil
 	}
 	return result, nil
 }
 
-func marshalInstallResult(result InstallResult) (*mcp.CallToolResult, error) {
-	if result.Installed == nil {
-		result.Installed = []ToolEntry{}
-	}
-	if result.AlreadyPresent == nil {
-		result.AlreadyPresent = []ToolEntry{}
-	}
-	if result.Failed == nil {
-		result.Failed = []FailedEntry{}
-	}
-	res, err := mcp.NewToolResultJSON(result)
+func marshalInstallResult(result preflight.InstallResult) (*mcp.CallToolResult, error) {
+	res, err := mcp.NewToolResultJSON(result.Normalize())
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("marshaling results: %v", err)), nil
 	}

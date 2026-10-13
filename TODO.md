@@ -51,10 +51,9 @@ Carried over from the deleted repo-polish plan, plus one found in this session:
   uses `project-image-01.png` directly.
 - No `examples/claude-code/`, though the README documents
   `claude mcp add go-quality ...`.
-- `examples/github-actions/quality.yml` reads `.result.content[0].text`. That
-  still works — the text block carries the same JSON as `structuredContent` — but
-  `.result.structuredContent.diagnostics` is the modern path and reads better as
-  an example.
+- ~~`examples/github-actions/quality.yml` reads `.result.content[0].text`.~~
+  Resolved with the CLI: the example now calls `go-quality --json`, which is
+  simpler than piping JSON-RPC through stdin and exercises the same envelope.
 
 ### T8 — The weekly pin-drift job will cry wolf on nilaway
 nilaway publishes no tags, so its pin is a commit pseudo-version and
@@ -86,13 +85,6 @@ was not granted to the read-only peers and the lint criterion in that run was
 attested from the implementer's own output rather than independently reproduced
 (disclosed in `.mypi/task-hardening-02/run-details/final.md`). Add it to the
 vocabulary if a future run needs lint independently attested.
-
-### T12 — The `--fail-on=none` semantics need pinning when the CLI lands
-Not yet written, recorded so it is not missed. `--fail-on=none` must suppress the
-**findings** exit (1) only. If it also suppressed the **tool-error** exit (2), a repo
-where govulncheck failed to install would report no findings and exit 0 — a clean
-bill of health from a checker that never ran, which is the same silent-bypass class
-as T11. If a never-fail mode is genuinely wanted, make it a separate explicit flag.
 
 ---
 
@@ -141,6 +133,27 @@ as T11. If a never-fail mode is genuinely wanted, make it a separate explicit fl
   `--fail-on=error`. Gradation would mean a level above `error`, which is a contract
   change and was deliberately deferred — `--tools=govulncheck` already covers the
   "gate on security only" case without touching the schema.
+- **T12** — `--fail-on=none` semantics pinned. It suppresses the **findings** exit
+  (1) only; a tool execution failure (`error` field present) forces exit 2
+  unconditionally, including under `none`. Verified by
+  `TestExitCodeToolFailureOutranksEverything`, which asserts the failure outranks
+  every tier of `--fail-on`.
+- **CLI** — `go-quality` shipped as a second entrypoint over the same engine.
+  `cmd/mcp-server-go-quality` went 454 → 328 lines; the shared glue moved to
+  `internal/preflight` (`BuildHandlers`, `EnsureToolsAvailable`, install types),
+  `toolname.ModulePath` joined `InstallPath`, `formatHandlerError` was deleted in
+  favour of the byte-identical `checkers.FormatCheckerError`, and
+  `DiagnosticResponse` became `diagnostic.Response` so both entrypoints marshal one
+  type. 128 lines of duplicated tests went with it.
+
+  Verified rather than asserted:
+  - `--json` output is **byte-identical** to the MCP `structuredContent` — proven
+    against real output, two MCP runs and one CLI run, all
+    `sha256 aa46c7137efc2d4b`, 36,282 bytes.
+  - The `--fail-on` threshold is a comparison, not equality: reverting it to
+    `rank == limit` fails `TestTripsWarningTripsOnErrorSeverity`, which is the case
+    that would otherwise let a CVE through `--fail-on=warning`.
+  - A bad flag exits 2 with stdout empty, so `--json | jq` cannot be fed garbage.
 - **Review** — 12 findings from an independent adversarial review closed
   (R1–R12); test gaps for the install-tools payload, the `native` schema
   widening, and assertion strength all addressed.

@@ -25,9 +25,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   entirely and dropped out of any severity-filtered view — which sorted a reachable CVE
   below a style warning. Findings whose tool reports no severity are now labelled `error`.
   Error diagnostics are unaffected: they carry `error` and no severity.
+- **Diagnostic ordering is now total.** `RunAllChecks` sorted by `(file, line)` only,
+  and `sort.Slice` is not stable — so the 64 of 72 govulncheck findings that share
+  `file: "" / line: 0` came out in whatever order the tool happened to emit them.
+  Output was not reproducible run to run. The comparator now breaks ties on column,
+  tool, severity, message and raw payload, making the order deterministic.
 
 ### Added
 
+- **A `go-quality` CLI**, sharing the whole engine with the MCP server: same checkers,
+  same pinned tool versions, same root discovery, same envelope. `--json` is
+  byte-identical to the MCP tools' `structuredContent`. Text output by default,
+  `--tools` to narrow the sweep, `--fail-on=any|error|warning|none` to set the gate,
+  `--install-only` to pre-warm tools in CI. stdout carries only the payload, so
+  `go-quality --json | jq` is never corrupted by a first-run install. Exit codes:
+  `0` clean, `1` findings, `2` the run did not complete — a checker that failed to run
+  is unconditionally `2`, including under `--fail-on=none`.
 - Five MCP tools: `run_code_checks`, `run_lint`, `run_vuln_check`, `run_nil_check`, `install_tools`
 - Parallel checker execution with independent per-tool timeouts and panic recovery
 - Unified `Diagnostic[]` output schema with file:line:column navigation

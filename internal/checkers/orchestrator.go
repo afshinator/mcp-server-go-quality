@@ -1,10 +1,12 @@
 package checkers
 
 import (
+	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -58,7 +60,7 @@ func RunAllChecks(
 				results <- runResult{
 					diagnostics: []diagnostic.Diagnostic{{
 						Tool:  toolName,
-						Error: formatCheckerError(toolCtx, timeout, err),
+						Error: FormatCheckerError(toolCtx, timeout, err),
 					}},
 				}
 				return
@@ -77,17 +79,32 @@ func RunAllChecks(
 		allDiags = append(allDiags, res.diagnostics...)
 	}
 
-	sort.Slice(allDiags, func(i, j int) bool {
-		if allDiags[i].File != allDiags[j].File {
-			return allDiags[i].File < allDiags[j].File
-		}
-		return allDiags[i].Line < allDiags[j].Line
+	// A total order, not just file and line. Diagnostics that share both are
+	// common -- every module-level govulncheck finding has file "" and line 0 --
+	// and sort.Slice is not stable, so with only two keys those groups were
+	// ordered by whatever the tools happened to emit, making the output
+	// irreproducible run to run. The remaining keys make the order total, so the
+	// same findings always come out in the same sequence.
+	slices.SortStableFunc(allDiags, func(a, b diagnostic.Diagnostic) int {
+		return cmp.Or(
+			cmp.Compare(a.File, b.File),
+			cmp.Compare(a.Line, b.Line),
+			cmp.Compare(a.Column, b.Column),
+			cmp.Compare(a.Tool, b.Tool),
+			cmp.Compare(a.Severity, b.Severity),
+			cmp.Compare(a.Message, b.Message),
+			bytes.Compare(a.Native, b.Native),
+		)
 	})
 
 	return allDiags
 }
 
-func formatCheckerError(ctx context.Context, timeout time.Duration, err error) string {
+// FormatCheckerError renders a checker error for the caller. A context-expired
+// termination states the timeout or cancellation AND the process exit code and
+// stderr, discarding neither; it deliberately makes no causal claim, since no
+// timing or signal heuristic can prove the context caused the exit.
+func FormatCheckerError(ctx context.Context, timeout time.Duration, err error) string {
 	message := ""
 	if errors.Is(err, context.DeadlineExceeded) {
 		message = fmt.Sprintf("timed out after %s", timeout)

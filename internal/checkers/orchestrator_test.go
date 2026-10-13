@@ -11,6 +11,7 @@ import (
 	"github.com/afshinator/mcp-server-go-quality/internal/diagnostic"
 	"github.com/afshinator/mcp-server-go-quality/internal/discover"
 	"github.com/afshinator/mcp-server-go-quality/internal/runner"
+	"github.com/afshinator/mcp-server-go-quality/internal/toolname"
 )
 
 func TestRunAllWithSubset(t *testing.T) {
@@ -104,7 +105,7 @@ func TestFormatCheckerErrorPrefersTrueErrorOverContextState(t *testing.T) {
 	cancel() // context is cancelled, but err is a real tool failure
 
 	realErr := errors.New("Tool command failed with exit code 1. Stderr: syntax error")
-	result := formatCheckerError(ctx, 5*time.Minute, realErr)
+	result := FormatCheckerError(ctx, 5*time.Minute, realErr)
 	if result != realErr.Error() {
 		t.Errorf("got %q, want real error %q (context state should not shadow tool failure)", result, realErr.Error())
 	}
@@ -117,31 +118,31 @@ func TestFormatCheckerErrorReportsContextAndExitFacts(t *testing.T) {
 		Err:      errors.Join(errors.New("exit status 2"), context.DeadlineExceeded),
 	}
 
-	got := formatCheckerError(context.Background(), 5*time.Minute, processErr)
+	got := FormatCheckerError(context.Background(), 5*time.Minute, processErr)
 	for _, want := range []string{"timed out after 5m0s", "exit code 2", "syntax error"} {
 		if !strings.Contains(got, want) {
-			t.Errorf("formatCheckerError() = %q, want it to contain %q", got, want)
+			t.Errorf("FormatCheckerError() = %q, want it to contain %q", got, want)
 		}
 	}
 
 	processErr.Err = errors.Join(errors.New("exit status 2"), context.Canceled)
-	got = formatCheckerError(context.Background(), 5*time.Minute, processErr)
+	got = FormatCheckerError(context.Background(), 5*time.Minute, processErr)
 	for _, want := range []string{"cancelled", "exit code 2", "syntax error"} {
 		if !strings.Contains(got, want) {
-			t.Errorf("formatCheckerError() = %q, want it to contain %q", got, want)
+			t.Errorf("FormatCheckerError() = %q, want it to contain %q", got, want)
 		}
 	}
 }
 
 func TestFormatCheckerErrorDeadlineExceededError(t *testing.T) {
-	result := formatCheckerError(context.Background(), 5*time.Minute, context.DeadlineExceeded)
+	result := FormatCheckerError(context.Background(), 5*time.Minute, context.DeadlineExceeded)
 	if result != "timed out after 5m0s" {
 		t.Errorf("got %q, want timeout message", result)
 	}
 }
 
 func TestFormatCheckerErrorCancelledError(t *testing.T) {
-	result := formatCheckerError(context.Background(), 5*time.Minute, context.Canceled)
+	result := FormatCheckerError(context.Background(), 5*time.Minute, context.Canceled)
 	if result != "cancelled" {
 		t.Errorf("got %q, want 'cancelled'", result)
 	}
@@ -202,4 +203,59 @@ func TestIntegrationRunAllChecks(t *testing.T) {
 	if len(diags) == 0 {
 		t.Error("expected at least one diagnostic from test project")
 	}
+}
+
+// TestRunAllChecksOrderIsTotal pins the ordering contract. Module-level
+// govulncheck findings all share file "" and line 0, so a comparator using only
+// (file, line) left 64 of them tied and the output depended on tool emission
+// order. The same input in a different sequence must sort to the same output.
+func TestRunAllChecksOrderIsTotal(t *testing.T) {
+	mk := func(msg, tool string) diagnostic.Diagnostic {
+		return diagnostic.Diagnostic{Tool: tool, File: "", Line: 0, Severity: "error", Message: msg}
+	}
+	base := []diagnostic.Diagnostic{
+		mk("c", toolname.Govulncheck), mk("a", toolname.Govulncheck),
+		mk("b", toolname.Nilaway), mk("a", toolname.GolangciLint),
+		mk("b", toolname.Govulncheck), mk("a", toolname.Govulncheck),
+	}
+
+	order := func(diags []diagnostic.Diagnostic) []string {
+		h := &sliceHandler{name: "mock", out: diags}
+		got := RunAllChecks(context.Background(), &mockRunner{outputs: map[string][]byte{}}, []Checker{h}, "/p", time.Second)
+		out := make([]string, 0, len(got))
+		for _, d := range got {
+			out = append(out, d.Tool+"/"+d.Message)
+		}
+		return out
+	}
+
+	want := order(append([]diagnostic.Diagnostic(nil), base...))
+	if len(want) != len(base) {
+		t.Fatalf("got %d diagnostics, want %d", len(want), len(base))
+	}
+	// every permutation of an all-tied set must produce the same order
+	for _, perm := range [][]int{{5, 4, 3, 2, 1, 0}, {2, 0, 4, 1, 5, 3}, {1, 3, 5, 0, 2, 4}} {
+		shuffled := make([]diagnostic.Diagnostic, 0, len(base))
+		for _, i := range perm {
+			shuffled = append(shuffled, base[i])
+		}
+		got := order(shuffled)
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("order depends on input sequence: permutation %v gave %v, want %v", perm, got, want)
+			}
+		}
+	}
+}
+
+// sliceHandler is a Checker that returns a fixed set of diagnostics.
+type sliceHandler struct {
+	name string
+	out  []diagnostic.Diagnostic
+}
+
+func (h *sliceHandler) Name() string { return h.name }
+
+func (h *sliceHandler) Run(context.Context, runner.CommandRunner, string) ([]diagnostic.Diagnostic, error) {
+	return h.out, nil
 }

@@ -3,17 +3,14 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/afshinator/mcp-server-go-quality/internal/config"
 	"github.com/afshinator/mcp-server-go-quality/internal/diagnostic"
 	"github.com/afshinator/mcp-server-go-quality/internal/discover"
-	"github.com/afshinator/mcp-server-go-quality/internal/runner"
-	"github.com/afshinator/mcp-server-go-quality/internal/toolname"
+	"github.com/afshinator/mcp-server-go-quality/internal/preflight"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 )
@@ -111,53 +108,6 @@ func TestResolveRequestedToolsInvalidName(t *testing.T) {
 	}
 }
 
-// --- buildHandlers ---
-
-func TestBuildHandlersAllThree(t *testing.T) {
-	cfg := config.Default()
-	handlers := buildHandlers(toolname.All(), cfg, "/fake/project", "/fake/bin")
-	if len(handlers) != 3 {
-		t.Errorf("got %d handlers, want 3", len(handlers))
-	}
-	names := make(map[string]bool)
-	for _, h := range handlers {
-		names[h.Name()] = true
-	}
-	for _, name := range toolname.All() {
-		if !names[name] {
-			t.Errorf("handler for %q not built", name)
-		}
-	}
-}
-
-func TestBuildHandlersSingle(t *testing.T) {
-	cfg := config.Default()
-	handlers := buildHandlers([]string{toolname.GolangciLint}, cfg, "/fake/project", "/fake/bin")
-	if len(handlers) != 1 {
-		t.Errorf("got %d handlers, want 1", len(handlers))
-	}
-	if handlers[0].Name() != toolname.GolangciLint {
-		t.Errorf("handler name = %q, want %s", handlers[0].Name(), toolname.GolangciLint)
-	}
-}
-
-// --- ensureToolsAvailable ---
-
-func TestEnsureToolsAvailableUnknownToolReturnsError(t *testing.T) {
-	cfg := config.Default()
-	// Remove golangci-lint from config to trigger the error path.
-	delete(cfg.Tools, toolname.GolangciLint)
-
-	ctx := context.Background()
-	err := ensureToolsAvailable(ctx, []string{toolname.GolangciLint}, cfg, "/fake/bin", discover.NewCache())
-	if err == nil {
-		t.Error("expected error when tool not in config, got nil")
-	}
-	if !strings.Contains(err.Error(), "not found in config") {
-		t.Errorf("error should mention 'not found in config', got %q", err.Error())
-	}
-}
-
 // --- marshalDiagnostics ---
 
 func TestMarshalDiagnosticsNilIsEmptyEnvelope(t *testing.T) {
@@ -170,7 +120,7 @@ func TestMarshalDiagnosticsNilIsEmptyEnvelope(t *testing.T) {
 	}
 	// The JSON text content must carry an empty array, not null.
 	text := extractText(t, result)
-	var out DiagnosticsResponse
+	var out diagnostic.Response
 	if err := json.Unmarshal([]byte(text), &out); err != nil {
 		t.Fatalf("unmarshal failed: %v", err)
 	}
@@ -181,9 +131,9 @@ func TestMarshalDiagnosticsNilIsEmptyEnvelope(t *testing.T) {
 		t.Errorf("got %d diagnostics, want 0", len(out.Diagnostics))
 	}
 	// structuredContent must carry the same envelope, not just the text block.
-	sc, ok := result.StructuredContent.(DiagnosticsResponse)
+	sc, ok := result.StructuredContent.(diagnostic.Response)
 	if !ok {
-		t.Fatalf("structuredContent = %T, want DiagnosticsResponse", result.StructuredContent)
+		t.Fatalf("structuredContent = %T, want diagnostic.Response", result.StructuredContent)
 	}
 	if sc.Diagnostics == nil {
 		t.Error("structuredContent diagnostics is nil — expected empty array []")
@@ -199,7 +149,7 @@ func TestMarshalDiagnosticsWithFindings(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	text := extractText(t, result)
-	var out DiagnosticsResponse
+	var out diagnostic.Response
 	if err := json.Unmarshal([]byte(text), &out); err != nil {
 		t.Fatalf("unmarshal failed: %v", err)
 	}
@@ -215,9 +165,9 @@ func TestMarshalDiagnosticsWithFindings(t *testing.T) {
 	if out.Diagnostics[0].Message != "unused var" {
 		t.Errorf("Message = %q, want 'unused var'", out.Diagnostics[0].Message)
 	}
-	sc, ok := result.StructuredContent.(DiagnosticsResponse)
+	sc, ok := result.StructuredContent.(diagnostic.Response)
 	if !ok {
-		t.Fatalf("structuredContent = %T, want DiagnosticsResponse", result.StructuredContent)
+		t.Fatalf("structuredContent = %T, want diagnostic.Response", result.StructuredContent)
 	}
 	if len(sc.Diagnostics) != 1 || sc.Diagnostics[0].Tool != "golangci-lint" {
 		t.Errorf("structuredContent = %+v, want 1 golangci-lint diagnostic", sc.Diagnostics)
@@ -306,11 +256,11 @@ func TestNativeSchemaIsWidened(t *testing.T) {
 // which is never exercised through a real call in tests (it would run go install).
 func TestInstallResultPassesOutputValidation(t *testing.T) {
 	s := newServer(config.Default(), "/fake/bin", discover.NewCache())
-	s.AddTool(mcp.NewTool("install_probe", mcp.WithOutputSchema[InstallResult]()), func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return marshalInstallResult(InstallResult{
-			Installed:      []ToolEntry{{Tool: "nilaway", Version: "v0.0.0"}},
-			AlreadyPresent: []ToolEntry{{Tool: "golangci-lint", Version: config.GolangciLintVersion}},
-			Failed:         []FailedEntry{{Tool: "govulncheck", Version: "latest", Command: "go install x@latest", Stderr: "boom"}},
+	s.AddTool(mcp.NewTool("install_probe", mcp.WithOutputSchema[preflight.InstallResult]()), func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return marshalInstallResult(preflight.InstallResult{
+			Installed:      []preflight.ToolEntry{{Tool: "nilaway", Version: "v0.0.0"}},
+			AlreadyPresent: []preflight.ToolEntry{{Tool: "golangci-lint", Version: config.GolangciLintVersion}},
+			Failed:         []preflight.FailedEntry{{Tool: "govulncheck", Version: "latest", Command: "go install x@latest", Stderr: "boom"}},
 		})
 	})
 
@@ -379,7 +329,7 @@ func TestNonConformingResultFailsOutputValidation(t *testing.T) {
 // --- marshalInstallResult ---
 
 func TestMarshalInstallResultEmpty(t *testing.T) {
-	result, err := marshalInstallResult(InstallResult{})
+	result, err := marshalInstallResult(preflight.InstallResult{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -387,7 +337,7 @@ func TestMarshalInstallResultEmpty(t *testing.T) {
 		t.Fatal("result is nil")
 	}
 	text := extractText(t, result)
-	var out InstallResult
+	var out preflight.InstallResult
 	if err := json.Unmarshal([]byte(text), &out); err != nil {
 		t.Fatalf("unmarshal failed: %v", err)
 	}
@@ -399,55 +349,5 @@ func TestMarshalInstallResultEmpty(t *testing.T) {
 	}
 	if strings.Contains(text, `"failed":null`) {
 		t.Error(`"failed" field serialized as null, want []`)
-	}
-}
-
-// --- formatHandlerError ---
-
-func TestFormatHandlerErrorRealErrorWhenCtxDone(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // context is cancelled, but err is a real tool failure
-
-	realErr := errors.New("Tool command failed with exit code 1. Stderr: syntax error")
-	got := formatHandlerError(ctx, 5*time.Minute, realErr)
-	if got != realErr.Error() {
-		t.Errorf("got %q, want real error string %q (context state must not shadow tool failure)", got, realErr.Error())
-	}
-}
-
-func TestFormatHandlerErrorReportsContextAndExitFacts(t *testing.T) {
-	processErr := &runner.ExitError{
-		ExitCode: 2,
-		Stderr:   "syntax error\n",
-		Err:      errors.Join(errors.New("exit status 2"), context.DeadlineExceeded),
-	}
-
-	got := formatHandlerError(context.Background(), 5*time.Minute, processErr)
-	for _, want := range []string{"timed out after 5m0s", "exit code 2", "syntax error"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("formatHandlerError() = %q, want it to contain %q", got, want)
-		}
-	}
-
-	processErr.Err = errors.Join(errors.New("exit status 2"), context.Canceled)
-	got = formatHandlerError(context.Background(), 5*time.Minute, processErr)
-	for _, want := range []string{"cancelled", "exit code 2", "syntax error"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("formatHandlerError() = %q, want it to contain %q", got, want)
-		}
-	}
-}
-
-func TestFormatHandlerErrorDeadlineExceeded(t *testing.T) {
-	got := formatHandlerError(context.Background(), 5*time.Minute, context.DeadlineExceeded)
-	if got != "timed out after 5m0s" {
-		t.Errorf("got %q, want timeout message", got)
-	}
-}
-
-func TestFormatHandlerErrorCancelled(t *testing.T) {
-	got := formatHandlerError(context.Background(), 5*time.Minute, context.Canceled)
-	if got != "cancelled" {
-		t.Errorf("got %q, want 'cancelled'", got)
 	}
 }

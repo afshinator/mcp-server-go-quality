@@ -33,3 +33,23 @@ type Diagnostic struct {
 	Error    string          `json:"error"`
 	Native   json.RawMessage `json:"native"`
 }
+
+// Response is the result envelope shared by every entrypoint that reports
+// findings. The MCP tools return it as `structuredContent`; the CLI prints it
+// in `--json` mode. Keeping one type is what makes the two byte-identical
+// rather than merely similar.
+//
+// It is an object, not a bare array, because MCP requires structuredContent to
+// be one.
+type Response struct {
+	Diagnostics []Diagnostic `json:"diagnostics"`
+}
+
+// NewResponse wraps diagnostics, normalising nil to an empty slice so the
+// envelope always carries `[]` rather than `null`.
+func NewResponse(diags []Diagnostic) Response {
+	if diags == nil {
+		diags = []Diagnostic{}
+	}
+	return Response{Diagnostics: diags}
+}

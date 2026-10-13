@@ -22,17 +22,36 @@
 
 ## What it does
 
-Wraps three Go code quality tools into a single MCP interface. Designed for **AI coding agents** (Claude Code, Codex, OpenCode, ...) but also useful for CI pipelines and local development. Call one tool (`run_code_checks`) and get one sorted `Diagnostic[]` result — all three checkers run in parallel under independent timeouts. Tools auto-install on first use.
+Wraps three Go code quality tools behind one normalized result, and ships that
+as **two entrypoints over one engine**:
 
-| Concern | Raw CLI | This server |
+| | |
+|---|---|
+| `go-quality` | a plain CLI for terminals, pre-commit scripts and CI |
+| `mcp-server-go-quality` | an MCP server for Claude Code, Codex, OpenCode and other agents |
+
+Both run the same three checkers in parallel under independent timeouts, return
+the same `{"diagnostics": [...]}` envelope, resolve the same `.go-quality.yaml`,
+and auto-install the same pinned tool versions. Pick by how you want to call it,
+not by what it can do.
+
+| Concern | Raw tools | This project |
 |---|---|---|
-| Entry points | 3 separate `go install` + invocation | 1 MCP tool call |
+| Entry points | 3 separate `go install` + invocation | 1 CLI run or 1 MCP tool call |
 | Output format | 3 incompatible schemas | 1 unified `Diagnostic[]` result |
 | Tool install | Manual per machine | Auto-install with version pinning |
 | Concurrency | Sequential by default | Parallel goroutines, per-tool timeouts |
 | Error handling | Parse exit codes and stderr manually | Canonical `error` field per diagnostic, panic recovery |
 | Path normalization | Raw absolute paths | Relative to project root |
 | Workspace support | Manual `go.work` parsing | Two-pass root discovery (`go.work` > `go.mod`) |
+
+One caveat worth knowing before you build a gate on it: `severity` is populated
+from the tool's own reporting where it exists, but **govulncheck and nilaway have
+no severity concept** and golangci-lint reports one only when the repository
+config defines severity rules. Findings with no tool-reported severity are
+labelled `error`, so an unlabelled finding never sorts below a style warning —
+but that also means `--fail-on=warning` and `--fail-on=error` currently behave
+alike. Gate on `--fail-on=any`, or on `--tools=govulncheck` for security only.
 
 ---
 
@@ -43,6 +62,22 @@ Wraps three Go code quality tools into a single MCP interface. Designed for **AI
 | [golangci-lint](https://golangci-lint.run) | **v2.14.0** (pinned) | Lint violations, complexity (`gocyclo`/`gocognit`), security (`gosec`) |
 | [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) | **v1.9.0** (pinned) | Known CVEs reachable from your code via call-graph analysis |
 | [nilaway](https://github.com/uber-go/nilaway) | **v0.0.0-20260918162853-acb8859b9031** (pinned) | Inter-procedural nil-panic paths the compiler won't catch |
+
+---
+
+## Interoperability between the two entrypoints
+
+The CLI's `--json` output is byte-identical to the MCP tools' `structuredContent`
+— same envelope, same field order, same values — so one consumer works against
+either:
+
+```bash
+jq '.diagnostics' <(go-quality --json .)
+```
+
+The only difference is stream usage: the CLI writes the payload to stdout and
+progress/summary to stderr, while the MCP server writes JSON-RPC to stdout and
+logs to stderr.
 
 ---
 
@@ -115,11 +150,41 @@ For other MCP clients, add to your config:
 
 ### For humans (local install)
 
+Two binaries share one engine. The CLI is what you want in a terminal, a
+pre-commit script or CI; the MCP server is for agents that speak the protocol.
+
 ```bash
+# CLI — no protocol overhead, no MCP client needed
+go install github.com/afshinator/mcp-server-go-quality/cmd/go-quality@latest
+
+# MCP server — for Claude Code, Codex, and other MCP clients
 go install github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@latest
 ```
 
-Then run it directly on a Go project:
+#### CLI
+
+```bash
+cd ~/my-go-project
+go-quality                      # text on stdout, non-zero if anything is found
+go-quality --json | jq '.diagnostics'   # the same envelope the MCP tools return
+go-quality --tools=golangci-lint        # fast subset
+go-quality --fail-on=none               # report but never fail on findings
+```
+
+Exit codes: `0` clean, `1` a finding reached `--fail-on`, `2` the run did not
+complete (a checker failed to run, the config was unusable, or a flag was
+invalid). A tool that failed to run is **always** exit 2, even under
+`--fail-on=none` — a checker that never ran is not a clean result.
+
+stdout carries only the payload for the mode. Progress, install messages and the
+summary go to stderr, so `go-quality --json | jq` is never corrupted by a
+first-run tool install. Tools auto-install into `$GOBIN` on first use; use
+`--install-only` to pre-warm them in CI without running a check.
+
+`--json` is byte-identical to the MCP tools' `structuredContent`: same envelope,
+same field order, same values. One `jq` query works against either entrypoint.
+
+#### MCP server
 
 ```bash
 cd ~/my-go-project

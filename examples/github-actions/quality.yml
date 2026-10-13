@@ -22,8 +22,7 @@ jobs:
           go-version: "1.25"
 
       - name: Install go-quality
-        run: go install github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@latest
+        run: go install github.com/afshinator/mcp-server-go-quality/cmd/go-quality@latest
 
       - name: Run checks
-        run: |
-          echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"run_code_checks","arguments":{"project_path":"."}}}' | mcp-server-go-quality 2>/dev/null | jq -r '.result.content[0].text'
+        run: go-quality --json . | jq '.diagnostics'
