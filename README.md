@@ -86,7 +86,7 @@ as a text content block for backward compatibility:
 
 | Field | Notes |
 |---|---|
-| `severity` | Absent (not `""`) for govulncheck and nilaway — they have no severity concept |
+| `severity` | Always present on a finding. govulncheck and nilaway have no severity concept, and golangci-lint reports one only when the repo config defines severity rules, so a finding whose tool reports none is labelled `error` rather than left empty. Absent **only** on error diagnostics, which are tool failures. |
 | `native` | Full raw tool output. `null` for error diagnostics that carry no raw context. Govulncheck parse errors carry raw error strings as a JSON array. |
 | `error` | Non-empty on tool failure or panic. **Check this first** before reading `file`/`line`. |
 

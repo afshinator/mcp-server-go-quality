@@ -72,15 +72,23 @@ interface Diagnostic {
   file:     string;          // relative path from project root; "" if unknown
   line:     number;          // 0 if unknown
   column:   number;          // 0 if unknown; absent from JSON when 0 (omitempty)
-  severity: "error" | "warning" | "";  // "" for govulncheck/nilaway; absent when empty
+  severity: "error" | "warning";  // always present on a finding; see note below
   message:  string;          // human-readable summary
   error:    string;          // "" on success; non-empty on tool failure
   native:   object;          // full raw tool output for remediation
 }
 ```
 
-**Critical:** `column` and `severity` use `omitempty` — they are **absent from JSON**
-when zero/empty. Use `.get("column")` / `.get("severity")`, not `["column"]` / `["severity"]`.
+**Critical:** `column` uses `omitempty` — it is **absent from JSON** when zero. Use
+`.get("column")`, not `["column"]`.
+
+**`severity` is always present on a finding.** govulncheck and nilaway have no
+severity concept, and golangci-lint reports one only when the repository's config
+defines severity rules. A finding whose tool reports none is labelled `"error"`,
+because an unlabelled finding would otherwise drop out of any severity-filtered
+view — sorting a reachable CVE below a style warning. It is only absent on
+**error** diagnostics (a non-empty `error` field), which are tool failures rather
+than findings and are never severity-classified.
 
 ---
 
@@ -100,8 +108,8 @@ for d in diagnostics:
     if d.get("column"):
         location += f":{d['column']}"
 
-    severity = d.get("severity", "")
-    print(f"[{d['tool']}] {severity or 'info'} {location}: {d['message']}")
+    severity = d.get("severity", "error")   # always set on a finding; "error" only on a failure row
+    print(f"[{d['tool']}] {severity} {location}: {d['message']}")
 
     # d["native"] contains full raw output:
     #   golangci-lint → SuggestedFixes, FromLinter, SourceLines
@@ -115,11 +123,21 @@ An empty `diagnostics` array means no issues found. It is not an error.
 
 ## Filtering by severity
 
+Every finding carries a severity, so these buckets are exact. Do **not** treat a
+missing severity as "info" — a missing one means the tool has no severity concept
+(govulncheck, nilaway), which is a security finding, not an informational one.
+
 ```python
-errors   = [d for d in diagnostics if not d["error"] and d.get("severity") == "error"]
-warnings = [d for d in diagnostics if not d["error"] and d.get("severity") == "warning"]
-info     = [d for d in diagnostics if not d["error"] and not d.get("severity")]
+# Drop failure rows first: they carry `error`, not a severity.
+findings = [d for d in diagnostics if not d["error"]]
+failures = [d for d in diagnostics if d["error"]]
+
+errors   = [d for d in findings if d.get("severity") == "error"]
+warnings = [d for d in findings if d.get("severity") == "warning"]
 ```
+
+A gate that must not miss a vulnerability should not filter on severity at all —
+fail on any finding, or on any `error` diagnostic.
 
 ---
 

@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/afshinator/mcp-server-go-quality/internal/diagnostic"
 	"github.com/afshinator/mcp-server-go-quality/internal/discover"
 	"github.com/afshinator/mcp-server-go-quality/internal/runner"
 	"github.com/afshinator/mcp-server-go-quality/internal/toolname"
@@ -45,8 +46,8 @@ func TestParseGovulncheckOutputFindsVulnerabilities(t *testing.T) {
 	if d0.Message == "" {
 		t.Error("message is empty")
 	}
-	if d0.Severity != "" {
-		t.Error("severity should be empty for govulncheck (no severity concept)")
+	if d0.Severity != diagnostic.DefaultSeverity {
+		t.Errorf("severity = %q, want %q: govulncheck reports none, so a finding must not be left unlabelled", d0.Severity, diagnostic.DefaultSeverity)
 	}
 
 	d1 := diags[1]

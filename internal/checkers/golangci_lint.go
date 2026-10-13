@@ -82,7 +82,7 @@ func parseGolangciLintOutput(output []byte, projectRoot string) ([]diagnostic.Di
 			File:     file,
 			Line:     issue.Pos.Line,
 			Column:   issue.Pos.Column,
-			Severity: issue.Severity,
+			Severity: diagnostic.SeverityOrDefault(issue.Severity),
 			Message:  issue.Text,
 			Native:   native,
 		})

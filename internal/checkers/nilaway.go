@@ -94,12 +94,13 @@ func parseNilawayOutput(output []byte, projectRoot string) ([]diagnostic.Diagnos
 			native, _ := json.Marshal(issue)
 
 			diags = append(diags, diagnostic.Diagnostic{
-				Tool:    toolname.Nilaway,
-				File:    file,
-				Line:    line,
-				Column:  col,
-				Message: extractFirstSentence(issue.Message),
-				Native:  native,
+				Tool:     toolname.Nilaway,
+				File:     file,
+				Line:     line,
+				Column:   col,
+				Severity: diagnostic.DefaultSeverity,
+				Message:  extractFirstSentence(issue.Message),
+				Native:   native,
 			})
 		}
 	}

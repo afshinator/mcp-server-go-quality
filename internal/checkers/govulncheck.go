@@ -191,12 +191,13 @@ func parseGovulncheckOutput(output []byte, projectRoot string, workspaceModules 
 		}
 
 		diags = append(diags, diagnostic.Diagnostic{
-			Tool:    toolname.Govulncheck,
-			File:    file,
-			Line:    line,
-			Column:  column,
-			Message: message,
-			Native:  native,
+			Tool:     toolname.Govulncheck,
+			File:     file,
+			Line:     line,
+			Column:   column,
+			Severity: diagnostic.DefaultSeverity,
+			Message:  message,
+			Native:   native,
 		})
 	}
 

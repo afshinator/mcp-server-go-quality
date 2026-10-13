@@ -5,6 +5,31 @@ import (
 	"testing"
 )
 
+func TestSeverityOrDefault(t *testing.T) {
+	// Pinned so that lowering the default (which would let findings fall out of a
+	// severity-filtered view) is a deliberate, reviewed change rather than a tweak.
+	if DefaultSeverity != "error" {
+		t.Errorf("DefaultSeverity = %q, want \"error\": a finding must never default below the highest level", DefaultSeverity)
+	}
+
+	tests := []struct {
+		name         string
+		toolSeverity string
+		want         string
+	}{
+		{"empty gets the default", "", DefaultSeverity},
+		{"explicit error is kept", "error", "error"},
+		{"explicit warning is kept", "warning", "warning"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := SeverityOrDefault(tc.toolSeverity); got != tc.want {
+				t.Errorf("SeverityOrDefault(%q) = %q, want %q", tc.toolSeverity, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestDiagnosticJSONMarshalling(t *testing.T) { //nolint:gocognit
 	t.Run("full diagnostic with all fields", func(t *testing.T) {
 		d := Diagnostic{
@@ -89,6 +114,12 @@ func TestDiagnosticJSONMarshalling(t *testing.T) { //nolint:gocognit
 		}
 		if msg, ok := result["message"]; !ok || msg != "" {
 			t.Errorf("message should be present as \"\", got %v", msg)
+		}
+		// An error diagnostic is a failure, not a finding: no severity, so a
+		// consumer can key "tool failed" off `error` without confusing it with a
+		// severity-classified finding.
+		if _, ok := result["severity"]; ok {
+			t.Error("severity must be absent on an error diagnostic: a failure is not a finding")
 		}
 	})
 

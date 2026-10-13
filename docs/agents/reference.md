@@ -15,7 +15,7 @@ Diagnostic {
   file:     string          // relative path from project root; "" if unknown
   line:     number          // 0 if unknown
   column:   number          // absent from JSON when 0 (omitempty)
-  severity: "error" | "warning" | ""   // "" for govulncheck/nilaway; absent when empty
+  severity: "error" | "warning"  // always present on a finding; a tool with no severity concept yields "error". Absent only on error diagnostics.
   message:  string          // human-readable summary
   error:    string          // "" on success; non-empty on tool failure
   native:   object          // full raw tool output; also populated for govulncheck parse error diagnostics as a JSON array of error strings

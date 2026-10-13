@@ -87,6 +87,13 @@ attested from the implementer's own output rather than independently reproduced
 (disclosed in `.mypi/task-hardening-02/run-details/final.md`). Add it to the
 vocabulary if a future run needs lint independently attested.
 
+### T12 — The `--fail-on=none` semantics need pinning when the CLI lands
+Not yet written, recorded so it is not missed. `--fail-on=none` must suppress the
+**findings** exit (1) only. If it also suppressed the **tool-error** exit (2), a repo
+where govulncheck failed to install would report no findings and exit 0 — a clean
+bill of health from a checker that never ran, which is the same silent-bypass class
+as T11. If a never-fail mode is genuinely wanted, make it a separate explicit flag.
+
 ---
 
 ## Done
@@ -111,6 +118,29 @@ vocabulary if a future run needs lint independently attested.
   replaced that platform-shaped inference with reporting both facts.
 - **O10** — `docs/architecture.html` file map corrected; issue template now
   names `mcp-server-go-quality --version`.
+- **T11** — govulncheck and nilaway have no severity concept, and golangci-lint v2
+  reports one only when the repository config defines severity rules. Because
+  `severity` is `omitempty`, an unlabelled finding vanished from the JSON entirely
+  and dropped out of any severity-filtered view. Measured on the sample project: a
+  74-diagnostic sweep had **74/74 with no severity**, and the recipe documented in
+  `docs/agents/AGENTS.md` bucketed **42 distinct CVEs plus a nil-panic into `info`** —
+  a clean bill of health from a repo full of reachable vulnerabilities.
+
+  Fixed by normalising at parse time: `diagnostic.DefaultSeverity` (`"error"`) plus
+  `SeverityOrDefault`, applied in all three checkers. Error diagnostics are
+  explicitly unaffected — they carry `error` and no severity, so a consumer can key
+  "tool failed" off one field without confusing it with a finding.
+
+  Guards: `TestSeverityOrDefault` pins the default at `"error"` so lowering it is a
+  deliberate act; `TestParseGolangciLintEmptySeverityDefaults` covers the real-world
+  empty case; the govulncheck and nilaway assertions were flipped from "should be
+  empty" (which pinned the bug) to "must be `error`". Verified by reverting the fix:
+  all three fail.
+
+  Residual, not done: severity remains flat, so `--fail-on=warning` behaves like
+  `--fail-on=error`. Gradation would mean a level above `error`, which is a contract
+  change and was deliberately deferred — `--tools=govulncheck` already covers the
+  "gate on security only" case without touching the schema.
 - **Review** — 12 findings from an independent adversarial review closed
   (R1–R12); test gaps for the install-tools payload, the `native` schema
   widening, and assertion strength all addressed.
@@ -145,7 +175,6 @@ vocabulary if a future run needs lint independently attested.
   overlooked.
 - **T4** — Pins now have a drift check and a single-command bump. Delivered in
   `2c23f27`.
-
   `.github/workflows/pin-drift.yml` runs weekly and fails when any pin is behind
   the version resolved independently through the module proxy; it opens no PR and
   needs no secret beyond the default token. The detector is a Go test

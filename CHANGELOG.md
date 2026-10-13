@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with a test that enforces agreement across the Makefile, CI, Dockerfile, examples, and docs.
 - CI actions updated: `checkout` v7, `setup-go` v7, `golangci-lint-action` v9,
   `goreleaser-action` v7. Dependabot now tracks `github-actions`.
+- **A finding always carries a `severity`.** govulncheck and nilaway have no severity
+  concept, and golangci-lint reports one only when the repository config defines severity
+  rules. Because `severity` is `omitempty`, an unlabelled finding vanished from the JSON
+  entirely and dropped out of any severity-filtered view — which sorted a reachable CVE
+  below a style warning. Findings whose tool reports no severity are now labelled `error`.
+  Error diagnostics are unaffected: they carry `error` and no severity.
 
 ### Added
 

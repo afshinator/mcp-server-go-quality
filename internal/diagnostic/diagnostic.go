@@ -2,6 +2,27 @@ package diagnostic
 
 import "encoding/json"
 
+// DefaultSeverity is the severity given to a finding whose tool reports none.
+//
+// govulncheck and nilaway have no severity concept, and golangci-lint v2 leaves
+// the field empty unless the repository config defines severity rules. Because
+// Severity is `omitempty`, an empty value disappears from the JSON, so any
+// consumer filtering on it would sort a reachable CVE below a style warning.
+// Findings therefore never go unlabelled.
+//
+// This applies to findings only. Error diagnostics carry Error instead: a tool
+// that failed to run is a failure, not a finding.
+const DefaultSeverity = "error"
+
+// SeverityOrDefault returns the tool's severity, or DefaultSeverity when the
+// tool reports none.
+func SeverityOrDefault(toolSeverity string) string {
+	if toolSeverity == "" {
+		return DefaultSeverity
+	}
+	return toolSeverity
+}
+
 type Diagnostic struct {
 	Tool     string          `json:"tool"`
 	File     string          `json:"file"`

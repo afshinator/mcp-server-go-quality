@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/afshinator/mcp-server-go-quality/internal/diagnostic"
 	"github.com/afshinator/mcp-server-go-quality/internal/discover"
 	"github.com/afshinator/mcp-server-go-quality/internal/runner"
 	"github.com/afshinator/mcp-server-go-quality/internal/toolname"
@@ -65,6 +66,30 @@ func TestParseGolangciLintOutput(t *testing.T) {
 	}
 	if d0.Native == nil {
 		t.Error("native should not be nil")
+	}
+}
+
+// TestParseGolangciLintEmptySeverityDefaults is the real-world case: golangci-lint
+// v2 emits "Severity": "" unless the repository config defines severity rules,
+// and the field is `omitempty`, so leaving it empty would drop a finding out of
+// any severity-filtered view entirely.
+func TestParseGolangciLintEmptySeverityDefaults(t *testing.T) {
+	input := `{"Issues": [
+		{"FromLinter":"gocognit","Text":"cognitive complexity 18 is high","Severity":"","Pos":{"Filename":"cmd/main.go","Line":115,"Column":1}},
+		{"FromLinter":"gosec","Text":"G404: weak random","Pos":{"Filename":"main.go","Line":1,"Column":1}}
+	]}`
+
+	diags, err := parseGolangciLintOutput([]byte(input), "/project/myapp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(diags) != 2 {
+		t.Fatalf("got %d diagnostics, want 2", len(diags))
+	}
+	for i, d := range diags {
+		if d.Severity != diagnostic.DefaultSeverity {
+			t.Errorf("diags[%d].Severity = %q, want %q (empty severity must not drop the finding out of a filtered view)", i, d.Severity, diagnostic.DefaultSeverity)
+		}
 	}
 }
 

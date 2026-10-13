@@ -61,8 +61,8 @@ func TestParseNilawayOutput(t *testing.T) {
 	if d0.Column != 12 {
 		t.Errorf("column = %d, want 12", d0.Column)
 	}
-	if d0.Severity != "" {
-		t.Error("severity should be empty for nilaway (no severity concept)")
+	if d0.Severity != diagnostic.DefaultSeverity {
+		t.Errorf("severity = %q, want %q: nilaway reports none, so a finding must not be left unlabelled", d0.Severity, diagnostic.DefaultSeverity)
 	}
 	if d0.Message == "" {
 		t.Error("message is empty")
