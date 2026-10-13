@@ -1,7 +1,16 @@
 {
   "name": "mcp-server-go-quality",
-  "description": "Runs golangci-lint, govulncheck, and nilaway against any Go project and returns {\"diagnostics\": [...]}, a single sorted Diagnostic[] with file:line:column. Use when an AI agent needs lint violations, CVE exposure, or nil-panic paths from a Go codebase in one call — tools auto-install on first use.",
-  "keywords": ["go", "golang", "linting", "security", "vulnerability", "code-quality", "mcp", "mcp-server"],
+  "description": "Runs golangci-lint, govulncheck, and nilaway against any Go project and returns {\"diagnostics\": [...]}, a single sorted Diagnostic[] with file:line:column. Use when an AI agent needs lint violations, CVE exposure, or nil-panic paths from a Go codebase in one call \u2014 tools auto-install on first use.",
+  "keywords": [
+    "go",
+    "golang",
+    "linting",
+    "security",
+    "vulnerability",
+    "code-quality",
+    "mcp",
+    "mcp-server"
+  ],
   "license": "MIT",
   "author": "afshinator",
   "homepage": "https://github.com/afshinator/mcp-server-go-quality",
@@ -27,5 +36,6 @@
       "name": "install_tools",
       "description": "Pre-install golangci-lint, govulncheck, and nilaway with pinned versions. Use once at session start to avoid first-run latency."
     }
-  ]
+  ],
+  "icon": "assets/logo.jpeg"
 }

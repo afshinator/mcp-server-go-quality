@@ -1,4 +1,6 @@
-![mcp-server-go-quality](./project-image-01.png)
+<div align="center">
+  <img src="assets/logo.jpeg" alt="mcp-server-go-quality" width="200">
+</div>
 
 # mcp-server-go-quality
 
