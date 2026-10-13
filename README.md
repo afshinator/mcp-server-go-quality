@@ -153,13 +153,24 @@ For other MCP clients, add to your config:
 Two binaries share one engine. The CLI is what you want in a terminal, a
 pre-commit script or CI; the MCP server is for agents that speak the protocol.
 
-```bash
-# CLI — no protocol overhead, no MCP client needed
-go install github.com/afshinator/mcp-server-go-quality/cmd/go-quality@latest
+**Stable install — release `v0.1.0`:**
 
-# MCP server — for Claude Code, Codex, and other MCP clients
-go install github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@latest
+```bash
+# CLI
+go install github.com/afshinator/mcp-server-go-quality/cmd/go-quality@v0.1.0
+
+# MCP server
+go install github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@v0.1.0
 ```
+
+Or grab a release archive from the
+[releases page](https://github.com/afshinator/mcp-server-go-quality/releases) —
+one per platform (linux/darwin/windows, amd64/arm64), each containing **both**
+binaries plus the CHANGELOG and LICENSE.
+
+**Tracking the default branch:** `@latest` resolves to the newest commit on
+`main`, so it can move between releases. Fine for trying it out; pin `@v0.1.0`
+for anything a gate depends on.
 
 #### CLI
 

@@ -121,6 +121,33 @@ An empty `diagnostics` array means no issues found. It is not an error.
 
 ---
 
+## Prefer the CLI? Same result without MCP
+
+If you have shell access to the target machine, the `go-quality` binary runs the
+same three checkers, resolves the same `.go-quality.yaml` and returns the same
+`{"diagnostics": [...]}` envelope as `structuredContent` — so the processing loop
+above is identical.
+
+```bash
+go-quality --json /path/to/project     # payload on stdout, summary on stderr
+go-quality --tools=golangci-lint /p    # fast subset
+go-quality --install-only              # pre-warm the pinned tools
+```
+
+Prefer MCP when the client manages the server lifecycle and you want
+`structuredContent`. Prefer the CLI for one-shot runs, scripts and CI, where an
+MCP session is overhead: no protocol handshake, no tool schema in context.
+
+Exit codes: `0` no finding reached the threshold, `1` a finding reached it, `2`
+the run did not complete (a checker failed to run, bad config, bad flag, missing
+root). A tool failure is `2` unconditionally, even under `--fail-on=none`.
+
+The tool is published on the
+[releases page](https://github.com/afshinator/mcp-server-go-quality/releases) and
+`go install .../cmd/go-quality@v0.1.0` works.
+
+---
+
 ## Filtering by severity
 
 Every finding carries a severity, so these buckets are exact. Do **not** treat a

@@ -26,8 +26,8 @@ Carried over from the deleted repo-polish plan, plus one found in this session:
 
 - `glama.json` has no icon and there is no 512x512 `assets/logo.png`; the README
   uses `project-image-01.png` directly.
-- No `examples/claude-code/`, though the README documents
-  `claude mcp add go-quality ...`.
+- ~~No `examples/claude-code/`.~~ Added: registration plus the CLI alternative,
+  so the example covers both ways of using the project.
 - ~~`examples/github-actions/quality.yml` reads `.result.content[0].text`.~~
   Resolved with the CLI: the example now calls `go-quality --json`, which is
   simpler than piping JSON-RPC through stdin and exercises the same envelope.
@@ -38,7 +38,10 @@ matches `shell_allowlist` entries by exact string, so `golangci-lint run ./...`
 was not granted to the read-only peers and the lint criterion in that run was
 attested from the implementer's own output rather than independently reproduced
 (disclosed in `.mypi/task-hardening-02/run-details/final.md`). Add it to the
-vocabulary if a future run needs lint independently attested.
+vocabulary if a future run needs lint independently attested. Concretely: future
+task-run configs (`.mypi/*/session.yaml`) must put
+`golangci-lint run ./...` in the read-only peer's `shell_allowlist`, and the
+reviewer brief must tell the peer it is there.
 
 ---
 
