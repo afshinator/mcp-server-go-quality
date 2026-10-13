@@ -1,0 +1,32 @@
+name: Integration
+
+# The fast `test.yml` job runs `go test -short`, which skips the four tests
+# that invoke the real golangci-lint, govulncheck and nilaway binaries. A
+# release is built from binaries, not from tests, so without this job a pinned
+# tool that stops installing -- or whose output format stops parsing -- would
+# only be discovered when a user runs it after a release. This job closes that
+# gap: it installs the pinned tools and runs the real checkers against
+# testdata/sample_project on every merge, weekly, and on demand.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 4 * * 1" # Monday, weekly
+  workflow_dispatch: {}
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+
+      # Installs the three pinned tools via the single source of truth
+      # (internal/config/config.go); versions are not hardcoded here.
+      - run: go run ./cmd/go-quality --install-only
+
+      - run: go test -run TestIntegration -timeout 20m -v ./...

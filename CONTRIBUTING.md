@@ -18,6 +18,21 @@ make test       # unit tests (fast)
 make test-all   # full suite including integration
 ```
 
+### Why the integration workflow exists
+
+`make test` runs `go test -short`, which skips the four tests that actually
+invoke golangci-lint, govulncheck and nilaway. A release is built from
+binaries, not from tests, so without a real run of the checkers we could tag a
+release and only find out after a user installs it that a pinned tool no longer
+installs, or emits output our parser no longer understands.
+
+The `.github/workflows/integration.yml` workflow closes that gap: on every merge
+to `main`, weekly, and on demand, it installs the pinned tools
+(`go run ./cmd/go-quality --install-only`) and runs the real checkers against
+`testdata/sample_project`. If a pinned tool stops installing or its output stops
+parsing, that workflow fails days before anyone cuts a release -- not after a
+user files a bug.
+
 ## Code quality before submitting
 
 ```bash
