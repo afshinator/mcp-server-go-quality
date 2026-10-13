@@ -379,13 +379,23 @@ func resolveModulePath(toolName string) string {
 }
 
 func formatHandlerError(ctx context.Context, timeout time.Duration, err error) string {
+	message := ""
 	if errors.Is(err, context.DeadlineExceeded) {
-		return fmt.Sprintf("timed out after %s", timeout)
+		message = fmt.Sprintf("timed out after %s", timeout)
+	} else if errors.Is(err, context.Canceled) {
+		message = "cancelled"
+	} else {
+		return err.Error()
 	}
-	if errors.Is(err, context.Canceled) {
-		return "cancelled"
+
+	if exitCode, ok := runner.ExitCode(err); ok {
+		stderr, _ := runner.Stderr(err)
+		if stderr != "" {
+			return fmt.Sprintf("%s (exit code %d; stderr: %s)", message, exitCode, strings.TrimSpace(stderr))
+		}
+		return fmt.Sprintf("%s (exit code %d)", message, exitCode)
 	}
-	return err.Error()
+	return message
 }
 
 // DiagnosticsResponse is the result envelope returned by the check tools. The

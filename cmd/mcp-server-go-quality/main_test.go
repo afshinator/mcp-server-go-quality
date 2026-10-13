@@ -12,6 +12,7 @@ import (
 	"github.com/afshinator/mcp-server-go-quality/internal/config"
 	"github.com/afshinator/mcp-server-go-quality/internal/diagnostic"
 	"github.com/afshinator/mcp-server-go-quality/internal/discover"
+	"github.com/afshinator/mcp-server-go-quality/internal/runner"
 	"github.com/afshinator/mcp-server-go-quality/internal/toolname"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -411,6 +412,29 @@ func TestFormatHandlerErrorRealErrorWhenCtxDone(t *testing.T) {
 	got := formatHandlerError(ctx, 5*time.Minute, realErr)
 	if got != realErr.Error() {
 		t.Errorf("got %q, want real error string %q (context state must not shadow tool failure)", got, realErr.Error())
+	}
+}
+
+func TestFormatHandlerErrorReportsContextAndExitFacts(t *testing.T) {
+	processErr := &runner.ExitError{
+		ExitCode: 2,
+		Stderr:   "syntax error\n",
+		Err:      errors.Join(errors.New("exit status 2"), context.DeadlineExceeded),
+	}
+
+	got := formatHandlerError(context.Background(), 5*time.Minute, processErr)
+	for _, want := range []string{"timed out after 5m0s", "exit code 2", "syntax error"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("formatHandlerError() = %q, want it to contain %q", got, want)
+		}
+	}
+
+	processErr.Err = errors.Join(errors.New("exit status 2"), context.Canceled)
+	got = formatHandlerError(context.Background(), 5*time.Minute, processErr)
+	for _, want := range []string{"cancelled", "exit code 2", "syntax error"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("formatHandlerError() = %q, want it to contain %q", got, want)
+		}
 	}
 }
 
