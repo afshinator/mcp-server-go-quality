@@ -13,23 +13,6 @@ The live backlog. **This is the file to read to find out what is next.**
 
 ## Open
 
-### T1 — Cut the first tagged release
-The repo has **no tags and nothing published to the module proxy**, so
-`go install ...@latest` resolves to a pseudo-version of `main` HEAD rather than a
-stable release. Two consequences:
-
-1. There is no stable version for consumers to pin, and the `goreleaser` release
-   workflow (`on: push: tags: v*`) has never fired.
-2. The breaking output change is already live for anyone installing `@latest`,
-   because `@latest` tracks HEAD. There is nothing to "ship first" — but there is
-   also no way for a consumer to stay on the old shape.
-
-Recommended: tag **v0.1.0**. Nothing was ever released, so there is no prior
-contract to bump away from, and `internal/version/version.go` already says
-`v0.1.0`. Fold the CHANGELOG's `Changed` section into an initial-release framing
-(it currently reads as a change to something nobody had), date it, run
-`goreleaser check`, then tag.
-
 ### T5 — Coverage gate and badge
 CI enforces a **60%** coverage floor and prints the number, but the README has no
 coverage badge, so the gate is invisible. Current measured coverage is **66.9%**
