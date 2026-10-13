@@ -3,6 +3,7 @@ version: 2
 
 builds:
   - id: mcp-server
+    binary: mcp-server-go-quality
     env:
       - CGO_ENABLED=0
     goos:
@@ -14,6 +15,7 @@ builds:
       - arm64
     main: ./cmd/mcp-server-go-quality/
   - id: go-quality-cli
+    binary: go-quality
     env:
       - CGO_ENABLED=0
     goos:
@@ -26,7 +28,7 @@ builds:
     main: ./cmd/go-quality/
 
 archives:
-  - format: tar.gz
+  - formats: [tar.gz]
     name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_
