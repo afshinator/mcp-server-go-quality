@@ -2,13 +2,16 @@ APP_NAME              := mcp-server-go-quality
 CMD_DIR               := ./cmd/$(APP_NAME)
 GOLANGCI_LINT_VERSION := v2.14.0
 
-.PHONY: build install test test-all lint audit nilcheck vet clean fmt fmt-check run check setup-dev
+.PHONY: build install test test-all lint audit nilcheck vet clean fmt fmt-check run check setup-dev bump-tool-pins
 
 build:
 	go build -o bin/$(APP_NAME) $(CMD_DIR)
 
 install:
 	go install $(CMD_DIR)
+
+bump-tool-pins:
+	go run ./cmd/bump-tool-pins
 
 test:
 	go test -short ./...

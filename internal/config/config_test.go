@@ -1,12 +1,15 @@
 package config
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/afshinator/mcp-server-go-quality/internal/discover"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -41,6 +44,47 @@ func TestDefaultVersionFallsBackToLatest(t *testing.T) {
 		}
 		if got == "latest" {
 			t.Errorf("DefaultVersion(%q) is unpinned, want a concrete version", name)
+		}
+	}
+}
+
+func pinDrifted(pin, latest string) bool {
+	return pin != latest
+}
+
+func TestPinDrifted(t *testing.T) {
+	if !pinDrifted("v1.0.0", "v1.1.0") {
+		t.Error("older pin was not reported as drift")
+	}
+	if pinDrifted("v1.1.0", "v1.1.0") {
+		t.Error("matching pin was reported as drift")
+	}
+}
+
+func TestPinnedVersionsAreCurrent(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires resolving latest versions from the Go module proxy")
+	}
+
+	tools := []struct {
+		name   string
+		module string
+	}{
+		{name: "golangci-lint", module: "github.com/golangci/golangci-lint/v2"},
+		{name: "govulncheck", module: "golang.org/x/vuln"},
+		{name: "nilaway", module: "go.uber.org/nilaway"},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	for _, tool := range tools {
+		latest, err := discover.ResolveLatest(ctx, tool.module)
+		if err != nil {
+			t.Fatalf("resolving latest %s version: %v", tool.name, err)
+		}
+		pin := DefaultVersion(tool.name)
+		if pinDrifted(pin, latest) {
+			t.Errorf("%s pin %s differs from latest %s; run make bump-tool-pins", tool.name, pin, latest)
 		}
 	}
 }

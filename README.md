@@ -181,6 +181,9 @@ TDD enforced — nearly every source file has a companion `_test.go` file. Integ
 Open work and known gaps are tracked in [TODO.md](TODO.md). The MCP-currency
 audit and its evidence are in [docs/mcp-spec-currency.md](docs/mcp-spec-currency.md).
 
+Use `make bump-tool-pins` to resolve the latest versions and update every tool pin.
+The scheduled pin-drift workflow checks those pins against the module proxy.
+
 ```bash
 make test       # unit tests (fast)
 make test-all   # full suite including integration

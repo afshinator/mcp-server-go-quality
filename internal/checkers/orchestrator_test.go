@@ -110,6 +110,29 @@ func TestFormatCheckerErrorPrefersTrueErrorOverContextState(t *testing.T) {
 	}
 }
 
+func TestFormatCheckerErrorReportsContextAndExitFacts(t *testing.T) {
+	processErr := &runner.ExitError{
+		ExitCode: 2,
+		Stderr:   "syntax error\n",
+		Err:      errors.Join(errors.New("exit status 2"), context.DeadlineExceeded),
+	}
+
+	got := formatCheckerError(context.Background(), 5*time.Minute, processErr)
+	for _, want := range []string{"timed out after 5m0s", "exit code 2", "syntax error"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("formatCheckerError() = %q, want it to contain %q", got, want)
+		}
+	}
+
+	processErr.Err = errors.Join(errors.New("exit status 2"), context.Canceled)
+	got = formatCheckerError(context.Background(), 5*time.Minute, processErr)
+	for _, want := range []string{"cancelled", "exit code 2", "syntax error"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("formatCheckerError() = %q, want it to contain %q", got, want)
+		}
+	}
+}
+
 func TestFormatCheckerErrorDeadlineExceededError(t *testing.T) {
 	result := formatCheckerError(context.Background(), 5*time.Minute, context.DeadlineExceeded)
 	if result != "timed out after 5m0s" {

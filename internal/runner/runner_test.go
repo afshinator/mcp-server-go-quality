@@ -3,8 +3,9 @@ package runner
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -117,31 +118,34 @@ func TestExitCodeHelper(t *testing.T) {
 	})
 }
 
-// TestExecRunnerTimeoutSurfacesDeadline runs a real subprocess to its deadline.
-// This is the path production actually takes: exec.CommandContext kills the
-// process and os/exec reports the process error, so the context error has to be
-// reattached for errors.Is to classify it as a timeout.
-func TestExecRunnerTimeoutSurfacesDeadline(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("signal-kill detection is Unix-shaped; see runner.go")
+// TestExecRunnerReportsContextAndExitFacts runs a helper subprocess until its
+// deadline, then checks that the returned error reports both context and process facts.
+func TestExecRunnerReportsContextAndExitFacts(t *testing.T) {
+	if os.Getenv("RUNNER_CONTEXT_FACTS_HELPER") == "1" {
+		_, _ = fmt.Fprintln(os.Stderr, "context-facts-stderr")
+		time.Sleep(10 * time.Second)
+		return
 	}
-	r := &ExecRunner{}
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+
+	t.Setenv("RUNNER_CONTEXT_FACTS_HELPER", "1")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	_, err := r.Run(ctx, "sleep", "5")
+	_, err := (&ExecRunner{}).Run(ctx, os.Args[0], "-test.run=^TestExecRunnerReportsContextAndExitFacts$")
 	if err == nil {
-		t.Fatal("expected an error from a killed subprocess")
+		t.Fatal("expected an error from a subprocess stopped at its deadline")
 	}
 	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Errorf("errors.Is(err, context.DeadlineExceeded) = false; err = %v", err)
+		t.Errorf("error does not report deadline exceeded: %v", err)
 	}
-	// The exit-error shape callers depend on must survive.
-	var exitErr *ExitError
-	if !errors.As(err, &exitErr) {
-		t.Errorf("errors.As(err, *ExitError) = false; err = %T", err)
-	} else if exitErr.ExitCode >= 0 {
-		t.Errorf("ExitCode = %d, want a negative (signal-killed) code", exitErr.ExitCode)
+	if !strings.Contains(err.Error(), "exit code") {
+		t.Errorf("error = %q, want process exit code", err)
+	}
+	if !strings.Contains(err.Error(), "context-facts-stderr") {
+		t.Errorf("error = %q, want process stderr", err)
+	}
+	if !strings.Contains(err.Error(), "context deadline exceeded") {
+		t.Errorf("error = %q, want context state", err)
 	}
 }
 

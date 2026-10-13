@@ -26,10 +26,16 @@ type ExitError struct {
 
 func (e *ExitError) Error() string {
 	stderr := strings.TrimSpace(e.Stderr)
-	if stderr == "" {
-		return fmt.Sprintf("Tool command failed with exit code %d.", e.ExitCode)
+	message := fmt.Sprintf("Tool command failed with exit code %d.", e.ExitCode)
+	if stderr != "" {
+		message = fmt.Sprintf("Tool command failed with exit code %d. Stderr: %s", e.ExitCode, stderr)
 	}
-	return fmt.Sprintf("Tool command failed with exit code %d. Stderr: %s", e.ExitCode, stderr)
+	if errors.Is(e.Err, context.DeadlineExceeded) {
+		message += " (context deadline exceeded)"
+	} else if errors.Is(e.Err, context.Canceled) {
+		message += " (context canceled)"
+	}
+	return message
 }
 
 func (e *ExitError) Unwrap() error {
@@ -61,7 +67,7 @@ func Stderr(err error) (string, bool) {
 }
 
 func (r *ExecRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204 — ExecRunner is the controlled subprocess interface, name comes from handler constants
+	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204,G702 — ExecRunner is the controlled subprocess interface, name comes from handler constants
 	if r.Dir != "" {
 		cmd.Dir = r.Dir
 	}
@@ -75,18 +81,9 @@ func (r *ExecRunner) Run(ctx context.Context, name string, args ...string) ([]by
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			cause := err
-			// exec.CommandContext kills the process when ctx is done, and os/exec
-			// then prefers the process's own error, discarding the context error.
-			// Without reattaching it here, a real timeout is indistinguishable
-			// from a crash and is reported as "exit code -1" instead of
-			// "timed out after <d>". Only a signal-kill (negative exit code) means
-			// the context caused the exit; a genuine non-zero exit that merely
-			// coincides with a done context must keep reporting its own error.
-			//
-			// shortcut: signal-kill detection is Unix-shaped, so on Windows a
-			// timeout still surfaces as an exit error; revisit if Windows
-			// timeout reporting matters.
-			if exitErr.ExitCode() < 0 && ctx.Err() != nil {
+			// os/exec prefers the process error over the context error. Keep both
+			// facts when the context is done; this does not establish causation.
+			if ctx.Err() != nil {
 				cause = errors.Join(err, ctx.Err())
 			}
 			return stdout.Bytes(), &ExitError{
