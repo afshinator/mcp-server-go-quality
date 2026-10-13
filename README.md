@@ -262,6 +262,7 @@ Open work and known gaps are tracked in [TODO.md](TODO.md). The MCP-currency
 audit and its evidence are in [docs/mcp-spec-currency.md](docs/mcp-spec-currency.md).
 
 Use `make bump-tool-pins` to resolve the latest versions and update every tool pin.
+Cutting a release is documented in [`RELEASING.md`](RELEASING.md).
 The scheduled pin-drift workflow checks those pins against the module proxy.
 
 Example configs live under [`examples/config/`](examples/config/), and
