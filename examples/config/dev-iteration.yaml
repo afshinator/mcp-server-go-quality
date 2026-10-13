@@ -2,10 +2,9 @@
 # Use with: {"tool": "run_code_checks", "tools": ["golangci-lint", "govulncheck"]}
 timeout: 3m
 
+# Tool versions are optional: omit `version` to use the pinned default
+# (see internal/config/config.go). Only set it to override a pin.
 tools:
   golangci-lint:
-    version: v2.14.0
   govulncheck:
-    version: v1.9.0
   nilaway:
-    version: v0.0.0-20260918162853-acb8859b9031

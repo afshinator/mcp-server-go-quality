@@ -2,6 +2,8 @@
   <img src="assets/logo.jpeg" alt="mcp-server-go-quality" width="200">
 </div>
 
+![mcp-server-go-quality](./project-image-01.png)
+
 # mcp-server-go-quality
 
 **One MCP server for golangci-lint, govulncheck, and nilaway — a unified `Diagnostic[]` result with consistent file:line:column navigation, parallel execution, and zero-config auto-install.**
@@ -261,6 +263,10 @@ audit and its evidence are in [docs/mcp-spec-currency.md](docs/mcp-spec-currency
 
 Use `make bump-tool-pins` to resolve the latest versions and update every tool pin.
 The scheduled pin-drift workflow checks those pins against the module proxy.
+
+Example configs live under [`examples/config/`](examples/config/), and
+[`examples/mcp-clients/`](examples/mcp-clients/) covers registering the MCP
+server with Claude Desktop, Cursor, Gemini CLI, Codex and other harnesses.
 
 ```bash
 make test       # unit tests (fast)

@@ -376,3 +376,27 @@ func TestDriftOnTaglessModuleIsInformational(t *testing.T) {
 		t.Fatal("precondition failed")
 	}
 }
+
+// TestEmptyToolEntryInheritsPin covers the example-config shape: a tool listed
+// without a version must inherit the pin, so examples never have to carry the
+// raw pseudo-version string around.
+func TestEmptyToolEntryInheritsPin(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/.go-quality.yaml"
+	body := "timeout: 3m\ntools:\n  golangci-lint:\n  govulncheck:\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	for name, want := range map[string]string{"golangci-lint": GolangciLintVersion, "govulncheck": GovulncheckVersion} {
+		if got := cfg.Tools[name].Version; got != want {
+			t.Errorf("%s version = %q, want %q (a tool listed without a version inherits the pin)", name, got, want)
+		}
+	}
+	if got := cfg.Tools["nilaway"].Version; got != NilawayVersion {
+		t.Errorf("nilaway version = %q, want the pinned default (it was not overridden)", got)
+	}
+}

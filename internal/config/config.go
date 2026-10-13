@@ -62,18 +62,16 @@ func DefaultVersion(toolName string) string {
 // consistency tests assert every one of them agrees with DefaultVersion.
 //
 // A file that gains a pin must be added here, or it will be neither bumped nor
-// guarded.
+// guarded. The example configs under examples/config deliberately omit version
+// lines: a tool listed without one inherits DefaultVersion at load time.
 var PinLocations = map[string][]string{
-	"internal/config/config.go":          {"golangci-lint", "govulncheck", "nilaway"},
-	"Dockerfile":                         {"golangci-lint", "govulncheck", "nilaway"},
-	"README.md":                          {"golangci-lint", "govulncheck", "nilaway"},
-	"docs/agents/AGENTS.md":              {"golangci-lint", "govulncheck", "nilaway"},
-	"docs/agents/reference.md":           {"golangci-lint", "govulncheck", "nilaway"},
-	"examples/config/ci.yaml":            {"golangci-lint", "govulncheck", "nilaway"},
-	"examples/config/dev-iteration.yaml": {"golangci-lint", "govulncheck", "nilaway"},
-	"examples/config/monorepo.yaml":      {"golangci-lint", "govulncheck", "nilaway"},
-	"Makefile":                           {"golangci-lint"},
-	".github/workflows/lint.yml":         {"golangci-lint"},
+	"internal/config/config.go":  {"golangci-lint", "govulncheck", "nilaway"},
+	"Dockerfile":                 {"golangci-lint", "govulncheck", "nilaway"},
+	"README.md":                  {"golangci-lint", "govulncheck", "nilaway"},
+	"docs/agents/AGENTS.md":      {"golangci-lint", "govulncheck", "nilaway"},
+	"docs/agents/reference.md":   {"golangci-lint", "govulncheck", "nilaway"},
+	"Makefile":                   {"golangci-lint"},
+	".github/workflows/lint.yml": {"golangci-lint"},
 }
 
 func ReservedFlags(toolName string) []string {

@@ -1,23 +1,25 @@
 package main
 
 import (
+	"os"
 	"slices"
 	"strings"
 	"testing"
 )
 
 func TestPinFilesCoverEveryCopy(t *testing.T) {
+	// pinFiles is config.PinLocations, the single source of truth for the pin
+	// surface. The example configs are deliberately absent: a tool listed in
+	// them without a version inherits the pin at load time, so there is nothing
+	// to rewrite.
 	want := map[string][]string{
-		"internal/config/config.go":          {"golangci-lint", "govulncheck", "nilaway"},
-		"Dockerfile":                         {"golangci-lint", "govulncheck", "nilaway"},
-		"README.md":                          {"golangci-lint", "govulncheck", "nilaway"},
-		"docs/agents/AGENTS.md":              {"golangci-lint", "govulncheck", "nilaway"},
-		"docs/agents/reference.md":           {"golangci-lint", "govulncheck", "nilaway"},
-		"examples/config/ci.yaml":            {"golangci-lint", "govulncheck", "nilaway"},
-		"examples/config/dev-iteration.yaml": {"golangci-lint", "govulncheck", "nilaway"},
-		"examples/config/monorepo.yaml":      {"golangci-lint", "govulncheck", "nilaway"},
-		"Makefile":                           {"golangci-lint"},
-		".github/workflows/lint.yml":         {"golangci-lint"},
+		"internal/config/config.go":  {"golangci-lint", "govulncheck", "nilaway"},
+		"Dockerfile":                 {"golangci-lint", "govulncheck", "nilaway"},
+		"README.md":                  {"golangci-lint", "govulncheck", "nilaway"},
+		"docs/agents/AGENTS.md":      {"golangci-lint", "govulncheck", "nilaway"},
+		"docs/agents/reference.md":   {"golangci-lint", "govulncheck", "nilaway"},
+		"Makefile":                   {"golangci-lint"},
+		".github/workflows/lint.yml": {"golangci-lint"},
 	}
 	if len(pinFiles) != len(want) {
 		t.Fatalf("pinFiles has %d entries, want %d", len(pinFiles), len(want))
@@ -25,6 +27,17 @@ func TestPinFilesCoverEveryCopy(t *testing.T) {
 	for path, names := range want {
 		if got, ok := pinFiles[path]; !ok || !slices.Equal(got, names) {
 			t.Errorf("pinFiles[%q] = %v, want %v", path, got, names)
+		}
+	}
+	// The example configs must keep inheriting the pin rather than hardcoding
+	// it, which is what created the drift the bump tool exists to fix.
+	for _, rel := range []string{"examples/config/ci.yaml", "examples/config/dev-iteration.yaml", "examples/config/monorepo.yaml"} {
+		body, err := os.ReadFile("../../" + rel) //nolint:gosec // fixed path from the test
+		if err != nil {
+			t.Fatalf("reading %s: %v", rel, err)
+		}
+		if strings.Contains(string(body), "version:") {
+			t.Errorf("%s hardcodes a tool version; example configs must inherit the pin", rel)
 		}
 	}
 }
