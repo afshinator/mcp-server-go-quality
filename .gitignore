@@ -43,3 +43,6 @@ Thumbs.db
 
 # Built binary at root (build output goes to bin/)
 /mcp-server-go-quality
+
+# goreleaser build output
+dist/
