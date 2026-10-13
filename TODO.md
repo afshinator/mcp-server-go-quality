@@ -30,31 +30,6 @@ contract to bump away from, and `internal/version/version.go` already says
 (it currently reads as a change to something nobody had), date it, run
 `goreleaser check`, then tag.
 
-### T3 — Windows timeout reporting
-`internal/runner/runner.go` reattaches the context error only when a subprocess
-was signal-killed (negative exit code). That is Unix-shaped, so on Windows a
-genuine timeout still surfaces as an exit error rather than
-`timed out after <d>`. Marked inline with a `shortcut:` comment.
-
-The fix must not depend on the platform at all (a `runtime.GOOS` branch or an
-exit-code sign test just moves the problem). Go 1.20+ exposes `cmd.Cancel`, a
-hook invoked when the context is done — one candidate worth evaluating, not a
-conclusion.
-
-Config staged at `.mypi/task-t3-windows-timeout/session.yaml`.
-
-### T4 — Pinned tool versions have no automated bump path
-Dependabot covers `go.mod` and GitHub Actions. It does **not** cover the three
-tool pins in `internal/config/config.go` (`GolangciLintVersion`,
-`GovulncheckVersion`, `NilawayVersion`) or their copies in the `Dockerfile`,
-README, agent docs, and `examples/config/*.yaml`. Those go stale silently, and a
-stale `govulncheck` means weaker vulnerability detection.
-
-A bump currently means hand-editing seven files, so any automation has to move
-all of them together or the consistency tests fail.
-
-Config staged at `.mypi/task-t4-pin-drift-automation/session.yaml`.
-
 ### T5 — Coverage gate and badge
 CI enforces a **60%** coverage floor and prints the number, but the README has no
 coverage badge, so the gate is invisible. Current measured coverage is **66.9%**
@@ -81,6 +56,37 @@ Carried over from the deleted repo-polish plan, plus one found in this session:
   `.result.structuredContent.diagnostics` is the modern path and reads better as
   an example.
 
+### T8 — The weekly pin-drift job will cry wolf on nilaway
+nilaway publishes no tags, so its pin is a commit pseudo-version and
+`go list -m ...@latest` resolves to a **different value on every upstream
+commit**. The scheduled `pin-drift` job therefore goes red most weeks for a
+reason nobody can act on, which is exactly how a real drift signal gets ignored.
+
+This was raised and accepted as a known risk during the run that added the
+workflow. Decide: exclude nilaway from the latest-comparison (it is pinned to a
+commit by intent), compare it only against an explicitly chosen upstream
+timestamp, or demote it to a non-failing report. Any option must keep the
+failing direction for golangci-lint and govulncheck, which do have releases.
+
+### T9 — The pin-location list exists in three places
+A file that carries a pin is known to
+`internal/config/config_test.go` (the consistency test's file list),
+`cmd/bump-tool-pins/main.go` (`pinFiles`), and the docs themselves. `make
+bump-tool-pins` and the consistency test each read their own copy, so a **new**
+file that gains a pin would be neither bumped nor guarded — the exact drift class
+T4 set out to remove, one level up.
+
+Either derive one list from a single source both consumers read, or have the
+consistency test assert that `pinFiles` and its own list are identical.
+
+### T10 — `golangci-lint` is outside the read-only verification vocabulary
+Not a code defect, a task-config constraint worth remembering. The harness
+matches `shell_allowlist` entries by exact string, so `golangci-lint run ./...`
+was not granted to the read-only peers and the lint criterion in that run was
+attested from the implementer's own output rather than independently reproduced
+(disclosed in `.mypi/task-hardening-02/run-details/final.md`). Add it to the
+vocabulary if a future run needs lint independently attested.
+
 ---
 
 ## Done
@@ -101,7 +107,8 @@ Carried over from the deleted repo-polish plan, plus one found in this session:
 - **O7** — Historical docs banner-labelled and indexed.
 - **O9** — Timeout classification fixed for the Unix path: `ExecRunner`
   reattaches the context error on signal-kill, so a real timeout reports
-  `timed out after <d>`. The Windows gap is T3.
+  `timed out after <d>`. The remaining Windows gap was closed by T3, which
+  replaced that platform-shaped inference with reporting both facts.
 - **O10** — `docs/architecture.html` file map corrected; issue template now
   names `mcp-server-go-quality --version`.
 - **Review** — 12 findings from an independent adversarial review closed
@@ -113,3 +120,37 @@ Carried over from the deleted repo-polish plan, plus one found in this session:
   `specs/` (design rationale), `tools-research.md` (tool selection), and
   `architecture.html` were kept and remain banner-labelled. Anything still
   unfinished in the deleted plans was extracted into T5 and T7.
+- **T3** — Timeout reporting is now platform-independent. The report states the
+  context state **and** the process exit code and stderr, discarding neither, and
+  no branch depends on the exit code's sign, `runtime.GOOS`, or a `shortcut:`
+  marker. Delivered in `2c23f27`.
+
+  The first attempt failed and is worth reading: `.mypi/task-t3-t4-hardening/`
+  produced no code and has the post-mortem in its `run-details/final.md`. Its
+  real contribution was settling that **no timing or signal heuristic can prove
+  the context caused a termination** — `Process.Kill() == nil` means the signal
+  was accepted, not that it caused the exit (`os/exec/exec.go:827-833`), and a
+  grace period supplies no causal marker at its boundary. So the requirement was
+  rewritten from *infer the cause* to *report both facts*, which is satisfiable
+  and fixes the user-visible defect. The successful run is
+  `.mypi/task-hardening-02/` (`exit_code: 0`, 13/13 criteria, $0.30).
+
+  The adversary in that run earned its budget: it found that a `runner.go`-only
+  fix could not satisfy the DoD because both formatters short-circuit and discard
+  the process detail, which is why the fix spans `internal/runner/runner.go`,
+  `cmd/mcp-server-go-quality/main.go`, and `internal/checkers/orchestrator.go`.
+  It also caught that a blind `errors.Join` makes `errors.Is(err,
+  DeadlineExceeded)` true for a genuine exit at the deadline, so a real tool
+  failure could be relabelled a timeout. That trade is recorded and accepted, not
+  overlooked.
+- **T4** — Pins now have a drift check and a single-command bump. Delivered in
+  `2c23f27`.
+
+  `.github/workflows/pin-drift.yml` runs weekly and fails when any pin is behind
+  the version resolved independently through the module proxy; it opens no PR and
+  needs no secret beyond the default token. The detector is a Go test
+  (`TestPinnedVersionsAreCurrent`) that skips under `-short`, so the ordinary
+  suite stays hermetic. `make bump-tool-pins` rewrites every pin location at
+  once. Verified by round trip: staling all ten locations and running the one
+  command returns the tree byte-identical to clean. The residual noise problem is
+  T8.
