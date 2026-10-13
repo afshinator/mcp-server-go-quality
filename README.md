@@ -268,6 +268,9 @@ The scheduled pin-drift workflow checks those pins against the module proxy.
 Example configs live under [`examples/config/`](examples/config/), and
 [`examples/mcp-clients/`](examples/mcp-clients/) covers registering the MCP
 server with Claude Desktop, Cursor, Gemini CLI, Codex and other harnesses.
+[`examples/agents/AGENTS.md`](examples/agents/AGENTS.md) is a drop-in
+instruction file a project can ship so any MCP-capable agent knows to run the
+checks and how to act on them.
 
 ```bash
 make test       # unit tests (fast)
