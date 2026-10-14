@@ -17,8 +17,7 @@ The live backlog. **This is the file to read to find out what is next.**
 Carried over from the deleted repo-polish plan, plus one found in this session:
 
 - ~~`glama.json` has no icon.~~ Added: `assets/logo.jpeg` (1024x1024) is the
-  listing icon and the README header. `project-image-01.png` is unreferenced and
-  can be deleted.
+  listing icon. The README header uses `assets/project-image-02.jpeg`.
 - ~~No `examples/claude-code/`.~~ Added: registration plus the CLI alternative,
   so the example covers both ways of using the project.
 - ~~`examples/github-actions/quality.yml` reads `.result.content[0].text`.~~
