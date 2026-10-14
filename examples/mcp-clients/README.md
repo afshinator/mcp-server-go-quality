@@ -46,7 +46,7 @@ config and prints the same `{"diagnostics": [...]}` envelope, which makes it
 usable from scripts, CI and hooks:
 
 ```bash
-go install github.com/afshinator/mcp-server-go-quality/cmd/go-quality@v0.1.0
+go install github.com/afshinator/mcp-server-go-quality/cmd/go-quality@v0.1.1
 
 go-quality --json . | jq '.diagnostics'          # machine-readable
 go-quality --tools=golangci-lint .               # fast subset

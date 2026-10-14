@@ -301,8 +301,8 @@ empty-result payload shapes were checked separately and both validate.
 2. **Protocol version is now `2026-07-28`.** Clients on older revisions
    negotiate down and keep working; clients on `2026-07-28` get the stateless
    core.
-3. The project is still pre-1.0 (`v0.1.0`, unreleased per CHANGELOG), so these
-   are recorded under the existing unreleased entry rather than a new major.
+3. The project is still pre-1.0 (`v0.1.0`, released 2026-10-13), so these are
+   recorded under the 0.1.x entries rather than a new major.
 
 ---
 

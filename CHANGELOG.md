@@ -5,6 +5,38 @@ All notable changes to mcp-server-go-quality are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] — 2026-10-13
+
+A correctness release: the gate now passes on a project with no reachable
+vulnerabilities, and the docs stop contradicting the code.
+
+### Fixed
+
+- **`govulncheck` findings are limited to vulnerabilities reachable from your
+  code.** govulncheck reports three trace levels: symbol (your code calls it),
+  package (imported, never called) and module (required, never called). All
+  three were emitted as findings, each stamped `error`, so any project whose
+  dependency graph contained a vulnerable version failed `--fail-on=error` and
+  `--fail-on=any` whether or not the code could reach it. A hello-world module
+  reported 56 findings and exited 1 while govulncheck itself reported no
+  affected code. Only symbol-level traces are findings now. The dependency-graph
+  advisories are no longer in the result: run `govulncheck` directly for the
+  full list.
+- **The MCP server rejects a positional path.** `mcp-server-go-quality
+  ~/project` silently discarded the path and served the working directory,
+  because the flag package stops parsing at the first non-flag argument, so
+  `--version` after it was ignored too. It now exits with a message naming
+  `--config`.
+
+### Changed
+
+- Example configs and the README no longer carry per-tool `version` lines;
+  omitting `version` inherits the pinned default, so set it only to override.
+- Documentation corrected: the prerequisite is Go 1.21+, not 1.26+ on `PATH`;
+  the agent install command used `@latest`; the golangci-lint linter set follows
+  the target project's `.golangci.yml` (gosec is not on by default); tools
+  install into `$GOBIN`, or `$GOPATH/bin` when `GOBIN` is unset.
+
 ## [0.1.0] — 2026-10-13
 
 Initial release.
@@ -63,5 +95,5 @@ so one `jq '.diagnostics'` query works against either.
 
 - Built on `mark3labs/mcp-go` v1.2.1, which speaks protocol `2026-07-28`; older
   clients negotiate down and keep working.
-- Requires Go 1.26 on `PATH`; the toolchain directive in `go.mod` fetches the
-  exact version automatically.
+- Requires Go 1.21+ on `PATH`; the toolchain mechanism reads the `go` directive
+  in `go.mod` (1.26.0) and fetches it automatically.

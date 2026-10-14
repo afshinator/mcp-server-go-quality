@@ -8,7 +8,7 @@ and return the same `{"diagnostics": [...]}` envelope.
 Register it once:
 
 ```bash
-claude mcp add go-quality -- go run github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@v0.1.0
+claude mcp add go-quality -- go run github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@v0.1.1
 ```
 
 Or in `.mcp.json` / `claude_desktop_config.json`:
@@ -36,7 +36,7 @@ start, and reads the `structuredContent` envelope — you never see the protocol
 If you have shell access and just want the findings:
 
 ```bash
-go install github.com/afshinator/mcp-server-go-quality/cmd/go-quality@v0.1.0
+go install github.com/afshinator/mcp-server-go-quality/cmd/go-quality@v0.1.1
 
 cd ~/my-go-project
 go-quality                      # human-readable on stdout

@@ -5,7 +5,7 @@ import (
 	"runtime/debug"
 )
 
-var Value = "v0.1.0"
+var Value = "v0.1.1"
 
 func String() string {
 	info, ok := debug.ReadBuildInfo()

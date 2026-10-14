@@ -144,7 +144,7 @@ root). A tool failure is `2` unconditionally, even under `--fail-on=none`.
 
 The tool is published on the
 [releases page](https://github.com/afshinator/mcp-server-go-quality/releases) and
-`go install .../cmd/go-quality@v0.1.0` works.
+`go install .../cmd/go-quality@v0.1.1` works.
 
 ---
 

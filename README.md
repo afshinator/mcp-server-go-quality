@@ -132,7 +132,7 @@ as a text content block for backward compatibility:
 ### For AI agents (Claude Code, etc.)
 
 ```bash
-claude mcp add go-quality -- go run github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@v0.1.0
+claude mcp add go-quality -- go run github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@v0.1.1
 ```
 
 For other MCP clients, add to your config:
@@ -153,14 +153,14 @@ For other MCP clients, add to your config:
 Two binaries share one engine. The CLI is what you want in a terminal, a
 pre-commit script or CI; the MCP server is for agents that speak the protocol.
 
-**Stable install — release `v0.1.0`:**
+**Stable install — release `v0.1.1`:**
 
 ```bash
 # CLI
-go install github.com/afshinator/mcp-server-go-quality/cmd/go-quality@v0.1.0
+go install github.com/afshinator/mcp-server-go-quality/cmd/go-quality@v0.1.1
 
 # MCP server
-go install github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@v0.1.0
+go install github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@v0.1.1
 ```
 
 Or grab a release archive from the
@@ -169,7 +169,7 @@ one per platform (linux/darwin/windows, amd64/arm64), each containing **both**
 binaries plus the CHANGELOG and LICENSE.
 
 **Tracking the default branch:** `@latest` resolves to the newest commit on
-`main`, so it can move between releases. Fine for trying it out; pin `@v0.1.0`
+`main`, so it can move between releases. Fine for trying it out; pin `@v0.1.1`
 for anything a gate depends on.
 
 #### CLI
