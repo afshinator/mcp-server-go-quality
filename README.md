@@ -2,7 +2,7 @@
   <img src="assets/logo.jpeg" alt="mcp-server-go-quality" width="200">
 </div>
 
-![mcp-server-go-quality](./project-image-01.png)
+![mcp-server-go-quality](assets/project-image-02.jpeg)
 
 # mcp-server-go-quality
 
