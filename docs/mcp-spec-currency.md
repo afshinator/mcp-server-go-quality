@@ -25,7 +25,7 @@ findings and the fixes applied are in **Review pass** below.
 | O5a | Update all live output-contract descriptions to the envelope | [x] done (Review R1) |
 | O6 | Pin `govulncheck` and `nilaway` (no more `latest`) | [x] done |
 | O7 | Annotate `docs/superpowers/*` and `docs/tools-research.md` as historical | [x] done |
-| O8 | Release ordering: ship before external consumers read `@latest` | [ ] **open — now T1 in `TODO.md`** |
+| O8 | Release ordering: ship before external consumers read `@latest` | [x] done (T1: `v0.1.0` tagged and released) |
 | O9 | Timeout classification unreachable on the real subprocess path | [x] done |
 | O10 | Pre-existing cosmetic drift (architecture.html, issue template) | [x] done |
 
@@ -151,7 +151,7 @@ the original diff). **Fixed under O9**: `ExecRunner` reattaches the context erro
 only when the subprocess was signal-killed, so a real error that merely
 coincides with a done context still reports itself, while a genuine deadline
 reports `timed out after <duration>`. Reverting the fix reproduces the failure.
-The residual Windows gap is tracked as T3 in `../TODO.md`.
+The residual Windows gap was tracked as T3 in `../TODO.md` and is closed.
 
 ---
 
@@ -324,10 +324,11 @@ became of them:
   `docs/superpowers/README.md` indexes the directory and states it is
   historical, and `specs/spec-v3.md` and `docs/tools-research.md` carry banners.
   Whether to delete them outright is T2.
-- **O8 — release ordering (F-follow-up).** Moved to T1. `examples/client.go`
+- **O8 — release ordering (F-follow-up).** Moved to T1, closed in `1a70f77`:
+  `v0.1.0` was tagged and published, so a consumer can pin a tag rather than
+  read `@latest` and silently take a breaking output change. `examples/client.go`
   reads `structuredContent.diagnostics` and builds from the working tree, so it
-  is correct in-repo; the contract change still needs to ship before external
-  consumers read `@latest`.
+  stayed correct in-repo throughout.
 - **O9 — timeout classification was unreachable (F15).** Done. `ExecRunner` now
   reattaches the context error when a subprocess was signal-killed, so a real
   deadline reports `timed out after <duration>`. Verified by reverting the fix:
