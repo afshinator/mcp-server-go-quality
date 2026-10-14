@@ -153,6 +153,9 @@ func parseGovulncheckOutput(output []byte, projectRoot string, workspaceModules 
 	diags := make([]diagnostic.Diagnostic, 0, len(findings)+1)
 
 	for _, f := range findings {
+		if !isReachableTrace(f.Trace) {
+			continue
+		}
 		message := f.OSV
 		if osv, ok := osvMap[f.OSV]; ok && osv.Summary != "" {
 			message = osv.Summary
@@ -233,4 +236,19 @@ func chooseTraceEntry(trace []traceEntryJSON, workspaceModules []string) *traceE
 		}
 	}
 	return nil
+}
+
+// isReachableTrace reports whether govulncheck found the vulnerability reachable
+// from the project's own code. Only symbol-level findings have a function frame;
+// package-level ("imported but never called") and module-level ("required but
+// never called") traces are advisories about the dependency graph. Reporting
+// those as findings fails the gate on any project whose dependency graph happens
+// to contain a vulnerable version, whether or not the code can reach it.
+func isReachableTrace(trace []traceEntryJSON) bool {
+	for _, frame := range trace {
+		if frame.Function != "" {
+			return true
+		}
+	}
+	return false
 }

@@ -26,8 +26,13 @@ func TestParseGovulncheckOutputFindsVulnerabilities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(diags) != 2 {
-		t.Fatalf("got %d diagnostics, want 2", len(diags))
+	// The input holds two findings: a symbol-level one (reachable from the
+	// project's code) and a module-level one. Only the reachable one is a
+	// finding. The module-level trace is an advisory about the dependency graph,
+	// and emitting it as a finding fails the gate on any project whose
+	// dependency graph contains a vulnerable version it never calls.
+	if len(diags) != 1 {
+		t.Fatalf("got %d diagnostics, want 1 (the module-level advisory must be dropped)", len(diags))
 	}
 
 	d0 := diags[0]
@@ -50,9 +55,12 @@ func TestParseGovulncheckOutputFindsVulnerabilities(t *testing.T) {
 		t.Errorf("severity = %q, want %q: govulncheck reports none, so a finding must not be left unlabelled", d0.Severity, diagnostic.DefaultSeverity)
 	}
 
-	d1 := diags[1]
-	if d1.File != "" {
-		t.Errorf("file should be empty for module-level finding without position, got %q", d1.File)
+	// Every surviving govulncheck diagnostic points at code, because only
+	// symbol-level traces (which carry a function and a position) survive.
+	for i, d := range diags {
+		if d.File == "" || d.Line == 0 {
+			t.Errorf("diags[%d] has no position (%q:%d): a non-reachable advisory leaked through", i, d.File, d.Line)
+		}
 	}
 
 	container := NativeContainer(d0.Native)
