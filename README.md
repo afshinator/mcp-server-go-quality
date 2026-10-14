@@ -9,7 +9,7 @@
 [![Test](https://github.com/afshinator/mcp-server-go-quality/actions/workflows/test.yml/badge.svg)](https://github.com/afshinator/mcp-server-go-quality/actions/workflows/test.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/afshinator/mcp-server-go-quality)](https://goreportcard.com/report/github.com/afshinator/mcp-server-go-quality)
 [![Go Reference](https://pkg.go.dev/badge/github.com/afshinator/mcp-server-go-quality.svg)](https://pkg.go.dev/github.com/afshinator/mcp-server-go-quality)
-[![MCP](https://img.shields.io/badge/MCP-2026--07--28-blueviolet)]()
+[![MCP](https://img.shields.io/badge/MCP-2026--07--28-blueviolet)](docs/mcp-spec-currency.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ---
@@ -59,7 +59,7 @@ alike. Gate on `--fail-on=any`, or on `--tools=govulncheck` for security only.
 
 | Tool | Version | Checks |
 |---|---|---|
-| [golangci-lint](https://golangci-lint.run) | **v2.14.0** (pinned) | Lint violations, complexity (`gocyclo`/`gocognit`), security (`gosec`) |
+| [golangci-lint](https://golangci-lint.run) | **v2.14.0** (pinned) | Lint violations, complexity (`gocyclo`/`gocognit`), security (`gosec`); the linter set follows the target project's `.golangci.yml`, so gosec is not on by default |
 | [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) | **v1.9.0** (pinned) | Known CVEs reachable from your code via call-graph analysis |
 | [nilaway](https://github.com/uber-go/nilaway) | **v0.0.0-20260918162853-acb8859b9031** (pinned) | Inter-procedural nil-panic paths the compiler won't catch |
 
@@ -132,7 +132,7 @@ as a text content block for backward compatibility:
 ### For AI agents (Claude Code, etc.)
 
 ```bash
-claude mcp add go-quality -- go run github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@latest
+claude mcp add go-quality -- go run github.com/afshinator/mcp-server-go-quality/cmd/mcp-server-go-quality@v0.1.0
 ```
 
 For other MCP clients, add to your config:
@@ -189,7 +189,7 @@ invalid). A tool that failed to run is **always** exit 2, even under
 
 stdout carries only the payload for the mode. Progress, install messages and the
 summary go to stderr, so `go-quality --json | jq` is never corrupted by a
-first-run tool install. Tools auto-install into `$GOBIN` on first use; use
+first-run tool install. Tools auto-install into `$GOBIN` (or `$GOPATH/bin` when `GOBIN` is unset) on first use; use
 `--install-only` to pre-warm them in CI without running a check.
 
 `--json` is byte-identical to the MCP tools' `structuredContent`: same envelope,
@@ -204,9 +204,9 @@ mcp-server-go-quality
 mcp-server-go-quality --config ./my-config.yaml
 ```
 
-The server starts in stdio mode — connect any MCP client or test it interactively by piping JSON-RPC. Tools auto-install into `$GOBIN` on first use.
+The server starts in stdio mode — connect any MCP client or test it interactively by piping JSON-RPC. Tools auto-install into `$GOBIN` (or `$GOPATH/bin` when `GOBIN` is unset) on first use.
 
-**Prerequisites:** Go 1.26+ on `PATH` (the toolchain directive in `go.mod` downloads the exact required version automatically).
+**Prerequisites:** Go 1.21+ on `PATH` (the `go` directive in `go.mod` requires 1.26.0, which the toolchain mechanism downloads automatically).
 
 ---
 
@@ -223,20 +223,18 @@ Error tables, remediation, and troubleshooting: **[docs/agents/reference.md](doc
 
 ## Configuration (`.go-quality.yaml`)
 
-Place at the project root. All fields optional.
+Place at the project root. All fields optional. Omit `version` for a tool and it
+uses the pinned default.
 
 ```yaml
 timeout: 5m          # per-tool deadline; increase for big monorepos or first vuln DB download
 
 tools:
   golangci-lint:
-    version: v2.14.0
     extra_args: []
   govulncheck:
-    version: v1.9.0   # pinned
     extra_args: []
   nilaway:
-    version: v0.0.0-20260918162853-acb8859b9031   # pinned
     extra_args: ["--exclude-pkgs=github.com/myorg/vendor"]
 ```
 

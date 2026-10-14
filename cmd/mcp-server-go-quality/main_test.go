@@ -351,3 +351,20 @@ func TestMarshalInstallResultEmpty(t *testing.T) {
 		t.Error(`"failed" field serialized as null, want []`)
 	}
 }
+
+func TestCheckArgsRejectsPositionalArguments(t *testing.T) {
+	if err := checkArgs(nil); err != nil {
+		t.Errorf("checkArgs(nil) = %v, want nil (no positional args is valid)", err)
+	}
+
+	// flag.Parse stops at the first non-flag argument, so a positional path --
+	// and any flag after it, including --version -- is silently ignored while
+	// the server serves the working directory instead.
+	err := checkArgs([]string{"/tmp/myproject"})
+	if err == nil {
+		t.Fatal("checkArgs must reject a positional path: it would be silently ignored and the wrong directory checked")
+	}
+	if !strings.Contains(err.Error(), "/tmp/myproject") {
+		t.Errorf("error should name the offending argument, got %q", err)
+	}
+}

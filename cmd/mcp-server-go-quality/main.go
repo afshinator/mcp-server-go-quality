@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/afshinator/mcp-server-go-quality/internal/checkers"
 	"github.com/afshinator/mcp-server-go-quality/internal/config"
@@ -26,6 +27,10 @@ func main() {
 	verbose := flag.Bool("verbose", false, "emit diagnostic logging to stderr")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
+
+	if err := checkArgs(flag.Args()); err != nil {
+		log.Fatalf("%v", err)
+	}
 
 	if *showVersion {
 		fmt.Println(version.String())
@@ -72,6 +77,18 @@ func main() {
 	if err := mcpserver.ServeStdio(s); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
+}
+
+// checkArgs rejects positional arguments. The flag package stops parsing at the
+// first non-flag argument, so "mcp-server-go-quality ~/myproject" would silently
+// drop the path -- and every flag after it, including --version -- and then serve
+// the working directory. The server takes no positional path: it reads
+// .go-quality.yaml from its working directory, or the file named by --config.
+func checkArgs(args []string) error {
+	if len(args) == 0 {
+		return nil
+	}
+	return fmt.Errorf("unexpected argument(s): %s. This server takes no positional path; it reads .go-quality.yaml from its working directory. Use --config to point at another file", strings.Join(args, " "))
 }
 
 // newServer builds the MCP server with all tools registered. Output schema
