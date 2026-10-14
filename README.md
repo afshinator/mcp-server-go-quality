@@ -272,6 +272,7 @@ make test-all   # full suite including integration
 make lint       # golangci-lint
 make fmt        # gofumpt + goimports
 make build      # compile the binary
+make demo       # re-record the README demo GIF from demo.tape (needs vhs)
 ```
 
 ---

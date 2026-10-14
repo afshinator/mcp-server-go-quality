@@ -4,7 +4,7 @@ CMD_DIR               := ./cmd/$(APP_NAME)
 CLI_DIR               := ./cmd/$(CLI_NAME)
 GOLANGCI_LINT_VERSION := v2.14.0
 
-.PHONY: build build-cli install install-cli test test-all lint audit nilcheck vet clean fmt fmt-check run check setup-dev bump-tool-pins
+.PHONY: build build-cli install install-cli test test-all lint audit nilcheck vet clean fmt fmt-check run check setup-dev bump-tool-pins demo
 
 build:
 	go build -o bin/$(APP_NAME) $(CMD_DIR)
@@ -20,6 +20,14 @@ install-cli:
 
 bump-tool-pins:
 	go run ./cmd/bump-tool-pins
+
+# Records demo.gif from demo.tape. The binaries go on PATH first, so the tape only
+# types user-facing commands. Run from the repo root: the tape uses
+# testdata/sample_project.
+demo: build build-cli
+	@command -v vhs >/dev/null 2>&1 || { echo "ERROR: vhs is required to record the demo. Install it with: brew install vhs"; exit 1; }
+	PATH="$(CURDIR)/bin:$$PATH" vhs demo.tape
+	@echo "Recorded demo.gif from demo.tape."
 
 test:
 	go test -short ./...

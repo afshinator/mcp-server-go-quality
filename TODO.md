@@ -18,14 +18,7 @@ The live backlog. **This is the file to read to find out what is next.**
 
 ## Open
 
-### F5 — the demo GIF predates the CLI
-`demo.gif` last changed **2026-06-03**; `cmd/go-quality/` landed **2026-10-13**.
-The README leads with "two entrypoints over one engine" and `demo.gif` is the
-first visual after that sentence, so it cannot show the CLI: the headline feature
-is missing from the highest-attention asset in the file.
-
-Re-record it, or move the GIF below the CLI section so the text carries the
-headline.
+Nothing open.
 
 ---
 
@@ -227,6 +220,24 @@ closed except F5 (above).
   `PATH`"). Fixed in `b3128a0`. Editing a historical entry is unusual, but this
   was a wrong *requirement statement*, not a record of a change, and it
   contradicted the README correction.
+- **F5** — The README's demo GIF was stale in four ways, not one. It predated the
+  CLI by four and a half months (`demo.gif` 2026-06-03, `cmd/go-quality/`
+  2026-10-13); it never showed the CLI at all; it demonstrated the exact friction
+  the CLI was built to remove (a viewer hand-writing `{"jsonrpc":…}` and piping
+  it through `jq`); and its output carried **no `severity` key** at all, the
+  pre-T11 schema — so the demo advertised the bug T11 fixed. It also sat high in
+  the README, right after the badges.
+
+  Fixed by making the demo reproducible instead of re-recording it by hand.
+  `demo.tape` records both entrypoints: `go-quality` text output, `go-quality
+  --json | jq` showing the severity field, then the MCP server answering
+  `tools/list`. `make demo` builds the binaries onto PATH and runs `vhs`. The
+  tape is now the source of truth, so the next schema change is a tape edit
+  rather than a re-record.
+
+  That absence was the root cause: the old GIF had no source anywhere, in the
+  repo or its history (`git log --all -- "*.tape"` is empty), which is why it
+  went stale twice over without anyone noticing.
 
 Checked and found correct, recorded so nobody re-checks: path normalisation is
 right — the `../../../../tmp/…` seen during the review is a macOS `/tmp` →
