@@ -59,7 +59,7 @@ alike. Gate on `--fail-on=any`, or on `--tools=govulncheck` for security only.
 
 | Tool | Version | Checks |
 |---|---|---|
-| [golangci-lint](https://golangci-lint.run) | **v2.14.0** (pinned) | Lint violations, complexity (`gocyclo`/`gocognit`), security (`gosec`); the linter set follows the target project's `.golangci.yml`, so gosec is not on by default |
+| [golangci-lint](https://golangci-lint.run) | **v2.15.0** (pinned) | Lint violations, complexity (`gocyclo`/`gocognit`), security (`gosec`); the linter set follows the target project's `.golangci.yml`, so gosec is not on by default |
 | [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) | **v1.9.0** (pinned) | Known CVEs reachable from your code via call-graph analysis |
 | [nilaway](https://github.com/uber-go/nilaway) | **v0.0.0-20260918162853-acb8859b9031** (pinned) | Inter-procedural nil-panic paths the compiler won't catch |
 

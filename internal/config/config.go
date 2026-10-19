@@ -31,7 +31,7 @@ var reservedByTool = map[string][]string{
 // example configs.
 const (
 	// GolangciLintVersion is the pinned golangci-lint version.
-	GolangciLintVersion = "v2.14.0"
+	GolangciLintVersion = "v2.15.0"
 	// GovulncheckVersion is the pinned govulncheck version. The vulnerability
 	// database is still fetched at run time; this pins the analysis binary.
 	GovulncheckVersion = "v1.9.0"

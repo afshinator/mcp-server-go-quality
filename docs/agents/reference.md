@@ -132,7 +132,7 @@ scans all local modules and ignores vendor/stdlib. No manual configuration is ne
 
 **"unexpected output format from golangci-lint..."**
 The installed golangci-lint version doesn't match the server's parser (pinned to
-v2.14.0) or is a different major version. Run `install_tools` to restore the pinned
+v2.15.0) or is a different major version. Run `install_tools` to restore the pinned
 version.
 
 **govulncheck returns no findings on a project with known old dependencies**
@@ -179,7 +179,7 @@ timeout: 5m          # per-tool deadline; increase for large monorepos
 
 tools:
   golangci-lint:
-    version: v2.14.0   # pinned; override only if you need a specific version
+    version: v2.15.0   # pinned; override only if you need a specific version
     extra_args: []     # appended after required flags; cannot override --output.text.path or --output.json.path
   govulncheck:
     version: v1.9.0   # pinned
@@ -199,7 +199,7 @@ nilaway) are always applied and cannot be overridden via `extra_args`.
 
 ```json
 {
-  "installed":      [{"tool": "golangci-lint", "version": "v2.14.0"}],
+  "installed":      [{"tool": "golangci-lint", "version": "v2.15.0"}],
   "already_present": [{"tool": "govulncheck", "version": "v1.9.0"}],
   "failed":          [{"tool": "nilaway", "version": "v0.0.0-20260918162853-acb8859b9031", "command": "go install go.uber.org/nilaway/cmd/nilaway@v0.0.0-20260918162853-acb8859b9031", "stderr": "..."}]
 }

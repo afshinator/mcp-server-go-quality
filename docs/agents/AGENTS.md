@@ -186,7 +186,7 @@ timeout: 5m          # per-tool deadline; increase for large monorepos or first 
 
 tools:
   golangci-lint:
-    version: v2.14.0   # pinned; override at your own risk
+    version: v2.15.0   # pinned; override at your own risk
     extra_args: []
   govulncheck:
     version: v1.9.0   # pinned

@@ -2,7 +2,7 @@ APP_NAME              := mcp-server-go-quality
 CLI_NAME              := go-quality
 CMD_DIR               := ./cmd/$(APP_NAME)
 CLI_DIR               := ./cmd/$(CLI_NAME)
-GOLANGCI_LINT_VERSION := v2.14.0
+GOLANGCI_LINT_VERSION := v2.15.0
 
 .PHONY: build build-cli install install-cli test test-all lint audit nilcheck vet clean fmt fmt-check run check setup-dev bump-tool-pins demo
 
